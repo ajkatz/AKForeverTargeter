@@ -1,0 +1,8 @@
+<Bindings>
+	<!-- One key for any of them: a click on the panel's invisible secure button, whose macro tries every name on
+	     the panel (a hardware click is all a secure button needs - no snippet involved). -->
+	<Binding name="CLICK AKForeverTargeterAnyButton:LeftButton" header="AKFOREVERTARGETER" category="ADDONS"/>
+	<!-- Toggles the marker menu at the mouse, out of combat. In combat the menu is opened by holding a modifier
+	     (Blizzard's state driver shows it), because this client compiles no secure snippets. -->
+	<Binding name="AKFOREVERTARGETER_MENU" category="ADDONS">AKForeverTargeter_ToggleMenu()</Binding>
+</Bindings>
