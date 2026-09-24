@@ -1,9 +1,10 @@
 ## Interface: 16001
 ## Version: @project-version@
 ## Title: AKForeverTargeter
-## Notes: Targets of interest: a small panel with one row per mob your tracked quests are after (and the NPC to bring a finished quest back to) - click to target it and put a raid marker on it - plus a 3 x 3 marker menu at the mouse. No mob database: kill objectives name their mob, the rest is learned from the game's own tooltips and quest dialogs.
+## Notes: Targets of interest: one row per mob your tracked quests are after, and the NPC to hand them back to. Click a row to target it, with a raid marker beside it; one key targets any of them in turn. Rows can be hidden or pushed down the list, and only the quests where you are standing are shown. A 3x3 marker menu opens on the key you bind to it.
 ## Author: Purrdee
 ## X-License: MIT
+## IconTexture: Interface\AddOns\AKForeverTargeter\icon
 ## SavedVariables: AKForeverTargeterDB
 ## OptionalDeps: AKForeverTargeter_SavedState
 
