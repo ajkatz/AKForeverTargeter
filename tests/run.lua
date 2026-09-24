@@ -213,7 +213,7 @@ scenario("either ActionButtonUseKeyDown setting works", function()
         wantModifier()
         holdMenu(true)
         Mock.click(AKForeverTargeterMenuCell1)
-        equal(vermin.marker, 1, "the star, picked from the menu (key down: " .. tostring(useKeyDown) .. ")")
+        equal(vermin.marker, 8, "the skull, top left, picked from the menu (key down: " .. tostring(useKeyDown) .. ")")
         holdMenu(false)
         check(not AKForeverTargeterMenu:IsShown())
     end
@@ -468,7 +468,9 @@ scenario("a modifier can be asked for as well: held, it opens at the mouse and S
     equal(ns.MarkerMenu:Describe().sticky, true)
 
     local boar = { name = "Stonetusk Boar" }
-    state.mobs = { boar, { name = "Kobold Vermin", marker = 8 } }
+    -- the vermin already wears the marker we are about to put on the boar, so the "one at a time"
+    -- rule has something to take away (cell 9 is the star, bottom right - see MarkerMenu.lua's grid)
+    state.mobs = { boar, { name = "Kobold Vermin", marker = 1 } }
     state.target = boar
 
     Mock.cursor(300, 200)
@@ -485,20 +487,20 @@ scenario("a modifier can be asked for as well: held, it opens at the mouse and S
     holdMenu(true)
     check(menu:IsShown())
 
-    Mock.click(AKForeverTargeterMenuCell9) -- bottom right: the skull
-    equal(boar.marker, 8)
+    Mock.click(AKForeverTargeterMenuCell9) -- bottom right: the star
+    equal(boar.marker, 1)
     equal(state.mobs[2].marker, nil, "a marker is on one unit at a time")
     check(not menu:IsShown(), "a pick closes it")
 
     holdMenu(true)
     Mock.click(AKForeverTargeterMenuCell9)
-    equal(boar.marker, 8, "picking the marker it already has leaves it on")
+    equal(boar.marker, 1, "picking the marker it already has leaves it on")
     holdMenu(true)
     Mock.click(AKForeverTargeterMenuCell5) -- the middle: clear
     equal(boar.marker, nil)
     holdMenu(true)
-    Mock.click(AKForeverTargeterMenuCell2) -- the circle
-    equal(boar.marker, 2)
+    Mock.click(AKForeverTargeterMenuCell2) -- top middle: the cross
+    equal(boar.marker, 7)
     holdMenu(true)
     Mock.click(AKForeverTargeterMenuCell7, "RightButton") -- any cell, right button: clear
     equal(boar.marker, nil, "a right-click on any cell clears the target's marker")
@@ -528,7 +530,7 @@ scenario("the marker menu in combat: Blizzard's state driver shows it while the 
     check(menu:IsShown(), "shown by the driver in combat")
     equal(select(3, menu:GetPoint(1)), "CENTER", "at its spot, not at the mouse: it cannot be moved in a fight")
     Mock.click(AKForeverTargeterMenuCell1)
-    equal(boar.marker, 1, "the star, in combat")
+    equal(boar.marker, 8, "the skull, in combat")
     check(menu:IsShown(), "a pick does not close it in a fight: hiding is not ours to do")
     Mock.fire("GLOBAL_MOUSE_DOWN", "LeftButton")
     check(menu:IsShown(), "and neither does a click elsewhere")
