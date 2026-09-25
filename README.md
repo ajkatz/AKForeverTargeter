@@ -35,7 +35,8 @@ smooth.*
   looked right and was not: standing in Durotar with Kalimdor on screen, Barrens quests counted as here.)
 - Tracked quests only: what is in your quest tracker is what gets rows. Drag the panel by its title.
 
-`/akt` lists the commands: `on`, `off`, `mark on|off`, `menu`, `zone on|off`, `hidden`, `unhide`, `reset`, `status`, `forget`, `diag`.
+`/akt` lists the commands: `on`, `off`, `mark on|off`, `menu`, `zone on|off`, `flightmaster on|off` (a row for the
+zone's flight master, learned when you open the taxi map; off by default), `hidden`, `unhide`, `reset`, `status`, `forget`, `diag`.
 
 ## How it stays out of Blizzard's way
 

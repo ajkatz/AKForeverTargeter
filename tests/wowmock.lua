@@ -169,6 +169,13 @@ function methods.SetHighlightTexture(self, texture) self.__highlight = texture e
 function methods.SetJustifyH(self, justify) self.__justify = justify end
 function methods.SetTextColor(self, r, g, b) self.__textColor = { r, g, b } end
 function methods.SetWordWrap(self, wrap) self.__wordWrap = wrap end
+-- BackdropTemplate: Blizzard's mixin puts these on a frame made WITH the template, and on no other -
+-- which is what the addon's "does this frame have SetBackdrop?" check relies on.
+local backdropMethods = {
+    SetBackdrop = function(self, spec) self.__backdrop = spec end,
+    SetBackdropColor = function(self, r, g, b, a) self.__backdropColor = { r, g, b, a } end,
+    SetBackdropBorderColor = function(self, r, g, b, a) self.__backdropBorderColor = { r, g, b, a } end,
+}
 -- tooltips (our own one)
 function methods.SetOwner(self, owner, anchor) self.__owner, self.__lines = owner, {} end
 function methods.AddLine(self, text) self.__lines[#self.__lines + 1] = text end
@@ -177,9 +184,14 @@ local widgetMeta = { __index = methods }
 
 function newWidget(kind, name, parent, template)
     local widget = setmetatable({
-        __kind = kind, __name = name, __parent = parent, __scripts = {}, __events = {}, __points = {},
-        __attributes = {}, __children = {}, __shown = true,
+        __kind = kind, __name = name, __parent = parent, __template = template, __scripts = {}, __events = {},
+        __points = {}, __attributes = {}, __children = {}, __shown = true,
     }, widgetMeta)
+    if template == "BackdropTemplate" then
+        for name, fn in pairs(backdropMethods) do
+            rawset(widget, name, fn)
+        end
+    end
     if type(template) == "string" and template:find("Secure", 1, true) then
         assert(not template:find("SecureHandler", 1, true),
             "RestrictedExecution.lua:79: attempt to call a nil value (upvalue 'loadstring_untainted') - this beta compiles no secure snippets")
@@ -599,6 +611,7 @@ function Mock.install(options)
 
     local uiParent = newBlizzardFrame("Frame", "UIParent")
     global("UIParent", uiParent)
+    global("BackdropTemplateMixin", (not options.noBackdropTemplate) and {} or nil) -- the client offers the template, unless a scenario says not
     global("CreateFrame", function(kind, name, parent, template)
         assert(kind == "Frame" or kind == "Button" or kind == "GameTooltip", "CreateFrame kind the mock does not know: " .. tostring(kind))
         local frame = newWidget(kind, name, parent, template)

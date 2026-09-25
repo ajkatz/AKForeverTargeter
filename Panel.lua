@@ -2,8 +2,8 @@
 -- now - the tracked quests' kill objectives, the mobs learned for their collect objectives, and the NPC to
 -- bring a finished quest back to. Click a row: target it - and, with marking on, mark it. One key (Key
 -- Bindings > AddOns > AKForeverTargeter) targets whichever of them is around, in the panel's order.
--- Right-click a row to hide it, Shift + right-click to put it last (and first again). The title counts the
--- hidden rows; a right-click on the panel brings them all back, '/akt unhide <n>' one of them.
+-- Right-click a row to hide it, Shift + right-click to put it last (and first again). A note beside the
+-- title counts the hidden rows; a right-click on the panel brings them all back, '/akt unhide <n>' one of them.
 --
 -- ONLY WHAT IS HERE: a quest whose business is on another map takes no row ('/akt zone off' shows them
 -- all again). The map you are standing in is asked for by name - C_Map.GetBestMapForUnit - and the client
@@ -26,13 +26,22 @@ local _, ns = ...
 local Panel = {}
 ns.Panel = Panel
 
-local WIDTH, ROW, ICON, PAD, TITLE_H = 200, 20, 16, 6, 18
+local WIDTH, ROW, ICON, PAD, TITLE_H = 220, 20, 16, 8, 22
+
+-- Blizzard's own tooltip backdrop: the dark fill and thin border every utility panel in the game wears.
+local BACKDROP = {
+    bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true, tileSize = 16, edgeSize = 16,
+    insets = { left = 4, right = 4, top = 4, bottom = 4 },
+}
 local MAX_ROWS = 12
 local MARKER_ORDER = { 8, 7, 6, 5, 4, 3, 2, 1 } -- skull first: the classic "kill this" marker
 local MARKER_TEXTURE = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_"
 local PLAIN_TEXTURE = "Interface\\Minimap\\Tracking\\Target"
 local TURNIN_ATLAS = "QuestTurnin" -- the "?" of a quest ready to turn in
 local TURNIN_TEXTURE = "Interface\\GossipFrame\\ActiveQuestIcon"
+local FLIGHT_TEXTURE = "Interface\\Minimap\\Tracking\\FlightMaster"
 local MACRO_LIMIT = 1000 -- a macrotext attribute takes 1023 characters
 local DEFAULT_POSITION = { point = "RIGHT", relativePoint = "RIGHT", x = -30, y = 0 }
 local DIM = 0.35
@@ -44,7 +53,7 @@ _G["BINDING_NAME_CLICK " .. ANY_BUTTON .. ":LeftButton"] = "Target any of them (
 Panel.state = "not started"
 Panel.work = { events = 0, syncs = 0, syncMs = 0, slowestSyncMs = 0, placed = 0, waitedForCombatEnd = 0 }
 
-local panel, title, anyButton
+local panel, title, note, anyButton
 local rows = {}        -- every row ever made (a pool: protected frames are never thrown away)
 local byKey = {}       -- "questID:objectiveIndex" / "questID:turnin" -> row in use
 local markerOf = {}    -- "questID:objectiveIndex" -> raid target index, kept while the objective is shown
@@ -136,7 +145,7 @@ function Panel.AnyMacroFor(list, markers)
         length = length + #line + 1
         return true
     end
-    for _, kind in ipairs({ "mob", "giver" }) do
+    for _, kind in ipairs({ "mob", "giver", "flightmaster" }) do
         for _, want in ipairs(list) do
             if want.kind == kind then
                 for _, name in ipairs(want.names) do
@@ -210,6 +219,19 @@ local function wanted()
         end
         end
     end
+    -- flight master: if we know one for this map, add it at the end
+    if ns:GetOption("flightmaster") and ns.db and ns.db.flightmasters then
+        local mapID = type(C_Map) == "table" and type(C_Map.GetBestMapForUnit) == "function"
+            and C_Map.GetBestMapForUnit("player") or nil
+        if mapID and not ns.IsSecret(mapID) then
+            local name = ns.db.flightmasters[mapID]
+            if name then
+                add({ key = "fm:" .. mapID, kind = "flightmaster", questID = 0,
+                    order = 999, index = 0, names = { name }, title = "Flight Master", progress = "" })
+            end
+        end
+    end
+
     -- the tracker's order; what you lowered comes last
     table.sort(list, function(a, b)
         if a.deprio ~= b.deprio then
@@ -239,7 +261,9 @@ local function showTooltip(row)
     tooltip:SetOwner(row, "ANCHOR_LEFT")
     tooltip:AddLine(row.questTitle or "", 1, 0.82, 0)
     tooltip:AddLine("Target: " .. table.concat(row.names or {}, ", "), 1, 1, 1)
-    if row.kind == "giver" then
+    if row.kind == "flightmaster" then
+        tooltip:AddLine("flight master for this zone", 0.8, 0.8, 0.8)
+    elseif row.kind == "giver" then
         tooltip:AddLine("to turn the quest in", 0.8, 0.8, 0.8)
     elseif row.marker then
         tooltip:AddLine("and mark it", 0.8, 0.8, 0.8)
@@ -289,7 +313,9 @@ local function setIcon(row, kind, marker)
     end
     row.iconKey = iconKey
     local icon = row.icon
-    if kind == "giver" then
+    if kind == "flightmaster" then
+        icon:SetTexture(FLIGHT_TEXTURE)
+    elseif kind == "giver" then
         local atlas = type(C_Texture) == "table" and type(C_Texture.GetAtlasInfo) == "function" and C_Texture.GetAtlasInfo(TURNIN_ATLAS)
         if atlas and type(icon.SetAtlas) == "function" then
             icon:SetAtlas(TURNIN_ATLAS)
@@ -305,14 +331,17 @@ local function updateTitle()
     if not title then
         return
     end
+    -- the title never changes; the counts sit in a small dim note beside it, which the title yields to
     local notes = {}
     if hiddenCount > 0 then
         notes[#notes + 1] = hiddenCount .. " hidden"
     end
     if elsewhereCount > 0 then
-        notes[#notes + 1] = elsewhereCount .. (elsewhereCount == 1 and " quest" or " quests") .. " elsewhere"
+        notes[#notes + 1] = elsewhereCount .. " elsewhere"
     end
-    title:SetText(#notes > 0 and ("Targets of interest (" .. table.concat(notes, ", ") .. ")") or "Targets of interest")
+    if note then
+        note:SetText(table.concat(notes, ", "))
+    end
 end
 
 local function savePosition()
@@ -331,7 +360,7 @@ local function place()
 end
 
 local function build()
-    panel = CreateFrame("Frame", "AKForeverTargeterPanel", UIParent)
+    panel = CreateFrame("Frame", "AKForeverTargeterPanel", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
     panel:SetSize(WIDTH, TITLE_H + PAD)
     panel:SetFrameStrata("LOW")
     panel:SetClampedToScreen(true)
@@ -355,13 +384,34 @@ local function build()
     end)
     panel:Hide()
 
-    local background = panel:CreateTexture(nil, "BACKGROUND")
-    background:SetAllPoints(panel)
-    background:SetColorTexture(0.04, 0.04, 0.06, 0.6)
+    if type(panel.SetBackdrop) == "function" then
+        panel:SetBackdrop(BACKDROP)
+        panel:SetBackdropColor(0.09, 0.09, 0.19, 0.92) -- TOOLTIP_DEFAULT_BACKGROUND_COLOR
+        panel:SetBackdropBorderColor(1, 1, 1, 1)
+        Panel.look = "Blizzard's tooltip backdrop"
+    else
+        -- a client without the backdrop template: a plain dark fill rather than nothing
+        local background = panel:CreateTexture(nil, "BACKGROUND")
+        background:SetAllPoints(panel)
+        background:SetColorTexture(0.04, 0.04, 0.06, 0.8)
+        Panel.look = "flat fill (no BackdropTemplate on this client)"
+    end
 
-    title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    title:SetPoint("TOPLEFT", panel, "TOPLEFT", PAD, -4)
+    -- The counts, small and dim, right-aligned on the title line; the title fills what is left and
+    -- truncates rather than leave the box (word wrap off: an ellipsis, never a second line).
+    note = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    note:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -PAD, -(PAD - 1))
+    note:SetJustifyH("RIGHT")
+    note:SetWordWrap(false)
+    note:SetText("")
+
+    title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    title:SetPoint("TOPLEFT", panel, "TOPLEFT", PAD, -(PAD - 2))
+    title:SetPoint("RIGHT", note, "LEFT", -4, 0)
+    title:SetJustifyH("LEFT")
+    title:SetWordWrap(false)
     title:SetText("Targets of interest")
+    Panel.header = { title = title, note = note } -- (read by the tests)
     -- a right-click on the panel (not on a row) brings every hidden row back
     panel:SetScript("OnMouseUp", function(_, mouseButton)
         if mouseButton == "RightButton" then
@@ -724,8 +774,28 @@ ns:Listen("TARGETS_CHANGED", function()
 end)
 
 ns:Listen("OPTION_CHANGED", function(_, key)
-    if key == "tracker" or key == "mark" then
+    if key == "tracker" or key == "mark" or key == "flightmaster" then
         Panel:Sync()
+    end
+end)
+
+-- Learn flight master names from the taxi map: when you open it, the target is the flight master.
+ns:On("TAXIMAP_OPENED", function()
+    local name = ns.Readable(UnitName, "target")
+    name = name and name[1] or nil
+    if not name or not ns.db then
+        return
+    end
+    local mapID = type(C_Map) == "table" and type(C_Map.GetBestMapForUnit) == "function"
+        and C_Map.GetBestMapForUnit("player") or nil
+    if not mapID or ns.IsSecret(mapID) then
+        return
+    end
+    ns.db.flightmasters = ns.db.flightmasters or {}
+    if ns.db.flightmasters[mapID] ~= name then
+        ns.db.flightmasters[mapID] = name
+        ns:Log("learned_flightmaster", { mapID = mapID, name = name })
+        bookSync()
     end
 end)
 
@@ -757,6 +827,17 @@ ns:RegisterCommand("zone", "'/akt zone off' shows quests from every zone, '/akt 
         and ("only what is here gets a row" .. (elsewhereCount > 0 and (" - " .. elsewhereCount .. " quest(s) left out for now.") or ".")
             .. " (" .. tostring(Panel.zoneNote) .. ")")
         or "every tracked quest gets a row, wherever it is.")
+end)
+
+ns:RegisterCommand("flightmaster", "'/akt flightmaster on': add a row for the local flight master (learned when you open the taxi map)", function(rest)
+    local value = string.lower(rest or "")
+    if value == "on" or value == "off" then
+        ns:SetOption("flightmaster", value == "on")
+    end
+    local on = ns:GetOption("flightmaster")
+    local known = ns.db and ns.db.flightmasters and next(ns.db.flightmasters) ~= nil
+    ns:Print("flight master targeting is " .. (on and "on" or "off") .. "."
+        .. (on and not known and " Open a flight master's taxi map to teach me their name." or ""))
 end)
 
 ns:RegisterCommand("hidden", "list the rows you hid with a right-click, numbered for '/akt unhide <number>'", function()

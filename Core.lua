@@ -199,6 +199,7 @@ local OPTION_DEFAULTS = {
     menuModifier = "off",
     menuSticky = true,    -- out of combat the menu stays open until you pick a marker or click elsewhere
     zoneOnly = true,      -- only quests whose business is on the map you are standing in get a row
+    flightmaster = false, -- add the local flight master to the panel (learned from opening the taxi map)
 }
 
 -- The realm is squeezed ("Classic Beta PvE" -> "ClassicBetaPvE"): on a fresh login UnitFullName has no

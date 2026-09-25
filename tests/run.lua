@@ -120,6 +120,36 @@ end
 ------------------------------------------------------------------------
 Mock.realPrint("AKForeverTargeter scenarios")
 
+scenario("the panel wears Blizzard's tooltip backdrop, and the title never leaves it", function()
+    local ns = start()
+    ns.Panel:Sync()
+    local panel = AKForeverTargeterPanel
+    equal(panel.__template, "BackdropTemplate", "made with Blizzard's template")
+    equal(panel.__backdrop.edgeFile, "Interface\\Tooltips\\UI-Tooltip-Border", "the tooltip border")
+    equal(panel.__backdrop.bgFile, "Interface\\Tooltips\\UI-Tooltip-Background", "and its fill")
+    check(panel.__backdropColor and panel.__backdropBorderColor, "coloured like a tooltip")
+    equal(ns.Panel.look, "Blizzard's tooltip backdrop")
+    for _, child in ipairs(panel.__children) do
+        check(child.__kind ~= "Texture" or child.__color == nil, "no flat fill of our own on top of it")
+    end
+
+    local title, note = ns.Panel.header.title, ns.Panel.header.note
+    equal(title.__wordWrap, false, "the title truncates rather than wraps")
+    local anchoredToNote = false
+    for _, point in ipairs(title.__points or {}) do
+        if point[2] == note then anchoredToNote = true end
+    end
+    check(anchoredToNote, "the title yields to the note: it can never run past it")
+    equal(note.__justify, "RIGHT")
+end)
+
+scenario("a client without the backdrop template still gets a panel, with a plain dark fill", function()
+    local ns = start({ noBackdropTemplate = true })
+    ns.Panel:Sync()
+    equal(AKForeverTargeterPanel.__template, nil)
+    equal(ns.Panel.look, "flat fill (no BackdropTemplate on this client)")
+    equal(#Mock.errors, 0)
+end)
 scenario("a kill objective names its mob - in the classic and in the modern wording, and in another language", function()
     local ns = start()
     local Quests = ns.Quests
@@ -142,7 +172,7 @@ scenario("a tracked kill quest: one row per objective in OUR panel - secure macr
     check(panel and panel:IsShown(), "the panel is there")
     local point, relativeTo, relativePoint, x, y = panel:GetPoint(1)
     equal(point, "RIGHT"); equal(relativeTo, UIParent); equal(relativePoint, "RIGHT"); equal(x, -30); equal(y, 0)
-    equal(panel:GetHeight(), 18 + 2 * 20 + 6, "the title and two rows")
+    equal(panel:GetHeight(), 22 + 2 * 20 + 8, "the title line and two rows")
 
     local vermin, worker = rowFor(ns, KOBOLDS .. ":1"), rowFor(ns, KOBOLDS .. ":2")
     check(vermin and worker, "one row per objective that names a mob")
@@ -309,7 +339,7 @@ scenario("combat: the quest log changes mid-fight - numbers follow, a finished o
     equal(verminRow:GetAlpha(), 0.35, "the finished objective's row goes dim at once")
     check(verminRow:IsShown(), "... but stays: a protected frame is not hidden in combat")
     equal(verminRow.progress:GetText(), "done")
-    equal(select(5, workerRow:GetPoint(1)), -(18 + 2 * 20), "the row below does not move up: that is not allowed in a fight")
+    equal(select(5, workerRow:GetPoint(1)), -(22 + 2 * 20), "the row below does not move up: that is not allowed in a fight")
 
     state.watched = { DUST, KOBOLDS, BANDANAS } -- a quest tracked mid-fight
     ns.Quests:Learn(BANDANAS, 1, "Defias Pathstalker")
@@ -731,7 +761,7 @@ scenario("hide a row with a right-click, lower its priority with Shift + right-c
     equal(rowFor(ns, KOBOLDS .. ":2").marker, 7, "and keep their markers")
     check(not AKForeverTargeterAnyButton:GetAttribute("macrotext"):find("Kobold Vermin", 1, true), "the any key skips it too")
     equal(ns.Panel.state, "2 target(s) of interest, 1 hidden")
-    equal(AKForeverTargeterPanel.__children[2].__text, "Targets of interest (1 hidden)", "the title counts it")
+    equal(ns.Panel.header.note.__text, "1 hidden", "the note beside the title counts it")
     SlashCmdList.AKFOREVERTARGETER("hidden")
     check(Mock.printed[#Mock.printed]:find("1|r  Kobold Vermin  (Kobold Camp Cleanup)", 1, true), "the list names it")
     SlashCmdList.AKFOREVERTARGETER("unhide 7")
@@ -745,7 +775,7 @@ scenario("hide a row with a right-click, lower its priority with Shift + right-c
     SlashCmdList.AKFOREVERTARGETER("unhide 1")
     equal(rowFor(ns, KOBOLDS .. ":1").slot, 1, "back on top")
     equal(rowFor(ns, KOBOLDS .. ":1").marker, 7)
-    equal(AKForeverTargeterPanel.__children[2].__text, "Targets of interest")
+    equal(ns.Panel.header.note.__text, "", "nothing to note"); equal(ns.Panel.header.title.__text, "Targets of interest")
 
     -- a right-click on the panel itself brings everything back
     Mock.rightClick(frameFor(KOBOLDS .. ":1"))
@@ -775,7 +805,7 @@ scenario("hide a row with a right-click, lower its priority with Shift + right-c
     check(frameFor(KOBOLDS .. ":1"):IsShown(), "still shown")
     equal(frameFor(KOBOLDS .. ":1"):GetAlpha(), 0.35, "but dim")
     equal(frameFor(KOBOLDS .. ":1").progress:GetText(), "hidden")
-    equal(AKForeverTargeterPanel.__children[2].__text, "Targets of interest (1 hidden)", "the title follows in a fight: a text is not protected")
+    equal(ns.Panel.header.note.__text, "1 hidden", "the note follows in a fight: a text is not protected")
     Mock.runScript(AKForeverTargeterPanel, "OnMouseUp", "RightButton")
     equal(frameFor(KOBOLDS .. ":1"):GetAlpha(), 1, "brought back: the row is bright again, and stays where it is")
     Mock.rightClick(frameFor(KOBOLDS .. ":1"))
@@ -796,13 +826,13 @@ scenario("only what is here: a quest whose business is in another zone takes no 
     local ns, state = start({}, function(s) s.watched = { KOBOLDS, DUST } end)
     ns.Quests:Learn(DUST, 1, "Kobold Miner")
     equal(rowCount(ns), 3)
-    equal(AKForeverTargeterPanel.__children[2].__text, "Targets of interest")
+    equal(ns.Panel.header.note.__text, "", "nothing to note"); equal(ns.Panel.header.title.__text, "Targets of interest")
 
     -- the kobold camp is behind you now
     Mock.setElsewhere(KOBOLDS, true)
     equal(rowCount(ns), 1, "only the quest whose business is here")
     check(rowFor(ns, DUST .. ":1") and not rowFor(ns, KOBOLDS .. ":1"))
-    equal(AKForeverTargeterPanel.__children[2].__text, "Targets of interest (1 quest elsewhere)")
+    equal(ns.Panel.header.note.__text, "1 elsewhere")
     equal(ns.Panel.state, "1 target(s) of interest, 1 quest(s) elsewhere")
     check(ns.Panel:Describe().zoneNote:find("map 1411", 1, true), "the report says which map decided it")
     check(not AKForeverTargeterAnyButton:GetAttribute("macrotext"):find("Kobold Vermin", 1, true),
@@ -825,7 +855,7 @@ scenario("only what is here: a quest whose business is in another zone takes no 
     Mock.setElsewhere(KOBOLDS, true)
     SlashCmdList.AKFOREVERTARGETER("zone off")
     equal(rowCount(ns), 3)
-    equal(AKForeverTargeterPanel.__children[2].__text, "Targets of interest")
+    equal(ns.Panel.header.note.__text, "", "nothing to note"); equal(ns.Panel.header.title.__text, "Targets of interest")
     SlashCmdList.AKFOREVERTARGETER("zone on")
     equal(rowCount(ns), 1)
     check(Mock.printed[#Mock.printed]:find("1 quest(s) left out", 1, true))
