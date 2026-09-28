@@ -10,6 +10,8 @@
   crossed off - a line through its name, dimmed, sorted last - so the panel doubles as "what is left";
   heard from the client's encounter events and from a dead boss on anybody's target. A `/reload` keeps
   the marks, walking in afresh clears them. Bosses and rares are marked like quest mobs and join the any-target key after them.
+- The end of a flight re-reads the map. In the air the zone events fire at the borders, but landing fires
+  none, so the rows of the zone you took off from stayed until the next quest event.
 - **Quest hints** for the mobs no tooltip will ever name: Mad Magglish, stealthed in the Wailing Caverns
   cave with the 99-Year-Old Port, is built in; `/akt hint add <quest title> = <mob>` teaches more.
 

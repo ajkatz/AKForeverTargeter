@@ -848,6 +848,16 @@ scenario("only what is here: a quest whose business is in another zone takes no 
     Mock.setPlayerMap(1413)
     equal(rowCount(ns), 2, "the kobolds are here now, the gold dust is not")
     check(rowFor(ns, KOBOLDS .. ":1") and not rowFor(ns, DUST .. ":1"))
+
+    -- a flight home: the zone events fire at the borders in the air, the landing fires none - the ride's
+    -- end (PLAYER_CONTROL_GAINED) is when the map is read again
+    Mock.state.playerMap = 1411
+    equal(rowCount(ns), 2, "landed, and nothing has said so yet: the rows of the zone you left are still there")
+    Mock.fire("PLAYER_CONTROL_GAINED")
+    Mock.nextFrame()
+    equal(rowCount(ns), 1, "the ride's end re-reads the map: the kobolds are elsewhere again")
+    check(rowFor(ns, DUST .. ":1") and not rowFor(ns, KOBOLDS .. ":1"))
+
     Mock.setPlayerMap(1411)
     Mock.setElsewhere(KOBOLDS, false)
 

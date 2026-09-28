@@ -33,6 +33,8 @@ smooth.*
   (`C_Map.GetBestMapForUnit`) and which quests the client puts there (`C_QuestLog.GetQuestsOnMap`), so no
   zone names are matched; a client that will not say leaves every row where it is. (`GetInfo().isOnMap`
   looked right and was not: standing in Durotar with Kalimdor on screen, Barrens quests counted as here.)
+  The end of a flight re-reads the map (`PLAYER_CONTROL_GAINED`): in the air the zone events fire at the
+  borders, the landing itself fires none.
 - Tracked quests only: what is in your quest tracker is what gets rows. Drag the panel by its title.
 
 `/akt` lists the commands: `on`, `off`, `mark on|off`, `menu`, `zone on|off`, `flightmaster on|off` (a row for the

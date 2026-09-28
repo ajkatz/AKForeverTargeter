@@ -775,8 +775,11 @@ ns:Listen("COMBAT_END", function()
     end
 end)
 
+-- PLAYER_CONTROL_GAINED: the end of a flight. In the air the zone events fire at the borders, while the map
+-- underneath is whatever the client makes of the sky; the landing itself fires no zone event, so the rows of
+-- the zone you left stayed until the next quest event (seen 2026-09-28). The ride's end is a moment to look.
 for _, event in ipairs({ "QUEST_LOG_UPDATE", "QUEST_WATCH_LIST_CHANGED", "QUEST_ACCEPTED", "QUEST_REMOVED", "QUEST_TURNED_IN",
-    "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "ZONE_CHANGED", "ZONE_CHANGED_INDOORS" }) do
+    "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "ZONE_CHANGED", "ZONE_CHANGED_INDOORS", "PLAYER_CONTROL_GAINED" }) do
     ns:On(event, bookSync)
 end
 
