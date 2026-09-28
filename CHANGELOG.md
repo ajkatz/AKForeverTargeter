@@ -1,5 +1,17 @@
 # AKForeverTargeter
 
+## 0.2.0
+
+- **In a dungeon or raid, the bosses and the rare spawns are rows** the moment you zone in: a built-in
+  list of the instances with their bosses in order and their known rares (`/akt dungeon list` prints it,
+  `/akt dungeon off` turns it off). Forever does not load the Adventure Guide, so the client has no list to
+  ask; what your group meets corrects and extends it - a rare or a skull-level boss seen on your target,
+  under the mouse or on a party member's target is remembered for that instance. A boss seen dead goes
+  dim and sorts last, so the panel doubles as "what is left"; a `/reload` keeps the marks, walking in
+  afresh clears them. Bosses and rares are marked like quest mobs and join the any-target key after them.
+- **Quest hints** for the mobs no tooltip will ever name: Mad Magglish, stealthed in the Wailing Caverns
+  cave with the 99-Year-Old Port, is built in; `/akt hint add <quest title> = <mob>` teaches more.
+
 ## 0.1.0 - first public release
 
 For **World of Warcraft: Forever** (1.60.1, Interface 16001).

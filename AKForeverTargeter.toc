@@ -13,6 +13,7 @@
 Core.lua
 Quests.lua
 Learn.lua
+Dungeons.lua
 Panel.lua
 MarkerMenu.lua
 Diagnostics.lua

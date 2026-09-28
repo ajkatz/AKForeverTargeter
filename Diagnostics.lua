@@ -126,6 +126,8 @@ function Diagnostics:Collect()
         givers = ns.db and ns.db.givers,
         tooltipSamples = ns.Learn.samples,
         markerMenu = ns.MarkerMenu:Describe(),
+        dungeon = ns.Dungeons and ns.Dungeons:Describe() or "no module",
+        hints = ns.db and ns.db.hints or {},
         inGroup = ask(IsInGroup),
         errors = {},
         blockedActions = ns.blockedActions,

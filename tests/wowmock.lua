@@ -683,6 +683,33 @@ function Mock.install(options)
         return state.units[token]
     end
     unitApi("UnitExists", function(unit) return unitOf(unit) ~= nil end)
+    unitApi("UnitClassification", function(unit) local u = unitOf(unit) return u and u.classification or "normal" end)
+    unitApi("UnitLevel", function(unit) local u = unitOf(unit) return u and u.level or 10 end)
+    unitApi("UnitIsDeadOrGhost", function(unit) local u = unitOf(unit) return u and u.dead or false end)
+    -- instances: state.instance = { mapID, name, kind = "party" | "raid" }, or nil out in the world
+    global("IsInInstance", function()
+        if state.secretApis.IsInInstance then
+            return Mock.SECRET, Mock.SECRET
+        end
+        if state.instance then
+            return true, state.instance.kind
+        end
+        return false, "none"
+    end)
+    global("GetInstanceInfo", function()
+        if state.secretApis.GetInstanceInfo then
+            return Mock.SECRET
+        end
+        local i = state.instance
+        if not i then
+            return "Durotar", "none", 0, "", 0, 0, false, 0, 0, 0
+        end
+        return i.name, i.kind, 1, "Normal", i.kind == "raid" and 40 or 5, 0, false, i.mapID, 5, 0
+    end)
+    function Mock.enterInstance(mapID, name, kind) -- nil: back out into the world
+        state.instance = mapID and { mapID = mapID, name = name, kind = kind or "party" } or nil
+        Mock.fire("PLAYER_ENTERING_WORLD", false, false)
+    end
     unitApi("UnitName", function(unit) local u = unitOf(unit) return u and u.name or nil end)
     unitApi("UnitIsPlayer", function(unit) local u = unitOf(unit) return u and u.isPlayer or false end)
     global("GetRaidTargetIndex", function(unit)

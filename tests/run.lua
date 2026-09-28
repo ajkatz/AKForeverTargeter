@@ -1048,6 +1048,118 @@ scenario("the panel is dragged by its title: the place is saved and comes back n
     equal(again.cdb.options.panel, nil)
 end)
 
+local function printed(needle)
+    for _, line in ipairs(Mock.printed or {}) do
+        if line:find(needle, 1, true) then
+            return true
+        end
+    end
+    return false
+end
+
+scenario("in a dungeon the bosses and the rare spawns are rows: Wailing Caverns in order, rares after the bosses, marked skull first, in the any key too", function()
+    local ns = start()
+    equal(rowFor(ns, "dg:43:Lady Anacondra"), nil, "out in the world: no dungeon rows")
+    Mock.enterInstance(43, "Wailing Caverns", "party")
+    local first = rowFor(ns, "dg:43:Lady Anacondra")
+    check(first, "the first boss has a row")
+    equal(first.kind, "boss"); equal(first.text, "Lady Anacondra"); equal(first.progress, "boss")
+    equal(first.names[1], "Lady Anacondra")
+    check(first.macro:find("/targetexact Lady Anacondra", 1, true), "a secure /targetexact like a quest row")
+    check(first.macro:find("/tm [exists,nodead] !", 1, true), "and it is marked")
+    local vermin = rowFor(ns, KOBOLDS .. ":1")
+    check(vermin.slot < first.slot, "quest rows first, then the dungeon")
+    equal(vermin.marker, 8, "the quest mob keeps the skull"); equal(rowFor(ns, "dg:43:Lord Cobrahn").marker, 5, "bosses take the markers after the quest mobs")
+    local rare = rowFor(ns, "dg:43:Deviate Faerie Dragon")
+    check(rare, "a rare spawn has a row too"); equal(rare.kind, "rare"); equal(rare.progress, "rare")
+    check(rowFor(ns, "dg:43:Mutanus the Devourer").slot < rare.slot, "the rares come after the bosses")
+    equal(#ns.Panel:Describe().inUse, 12, "twelve rows at most (the list is longer): the last bosses and rares wait")
+    local any = ns.Panel:Describe().any.macro
+    check(any:find("/targetexact [noexists] Kobold Vermin", 1, true) and any:find("/targetexact [noexists] Lady Anacondra", 1, true), "the any key knows the bosses")
+    check(any:find("Kobold Vermin", 1, true) < any:find("Lady Anacondra", 1, true), "after the quest mobs")
+
+    Mock.enterInstance(nil)
+    equal(rowFor(ns, "dg:43:Lady Anacondra"), nil, "back outside: the dungeon rows go")
+    Mock.enterInstance(43, "Wailing Caverns", "party")
+    SlashCmdList.AKFOREVERTARGETER("dungeon off")
+    equal(rowFor(ns, "dg:43:Lady Anacondra"), nil, "/akt dungeon off: no dungeon rows")
+    SlashCmdList.AKFOREVERTARGETER("dungeon on")
+    check(rowFor(ns, "dg:43:Lady Anacondra"))
+    SlashCmdList.AKFOREVERTARGETER("dungeon list")
+    check(printed("Wailing Caverns"), "the list is printed")
+end)
+
+scenario("a boss seen dead goes dim and sorts last; a rare met in an unlisted instance is learned and is there next visit", function()
+    local ns, state = start()
+    state.watched = {} -- no quests tracked: the eleven Wailing Caverns rows fit under the cap of twelve
+    Mock.watchListChanged()
+    Mock.enterInstance(43, "Wailing Caverns", "party")
+    state.units.target = { name = "Lady Anacondra", dead = true, classification = "elite", level = 20 }
+    Mock.fire("PLAYER_TARGET_CHANGED")
+    local first = rowFor(ns, "dg:43:Lady Anacondra")
+    check(first, "still a row"); equal(first.done, true); equal(first.progress, "dead")
+    check(math.abs(first.alpha - 0.35) < 0.01, "dim: alpha " .. tostring(first.alpha))
+    check(first.slot > rowFor(ns, "dg:43:Mutanus the Devourer").slot, "sorted after the live bosses")
+    check(not ns.Panel:Describe().any.macro:find("Lady Anacondra", 1, true), "the any key skips the dead")
+    -- a party member's target dying counts too
+    state.units.party1target = { name = "Lord Cobrahn", dead = true }
+    Mock.fire("UNIT_TARGET", "party1")
+    equal(rowFor(ns, "dg:43:Lord Cobrahn").done, true, "seen dead on a party member's target")
+    -- a /reload keeps the marks; walking in afresh clears them
+    Mock.fire("PLAYER_ENTERING_WORLD", false, true)
+    equal(rowFor(ns, "dg:43:Lady Anacondra").done, true, "kept over a /reload")
+    Mock.enterInstance(nil)
+    Mock.enterInstance(43, "Wailing Caverns", "party")
+    equal(rowFor(ns, "dg:43:Lady Anacondra").done, false, "a fresh visit: everyone alive again")
+
+    -- somewhere the list does not know
+    Mock.enterInstance(999, "The Sunken Vault", "party")
+    equal(#ns.Panel:Describe().inUse, 0, "unknown instance, nothing tracked: nothing")
+    state.units.mouseover = { name = "Gorewing the Lost", classification = "rareelite", level = 22 }
+    Mock.fire("UPDATE_MOUSEOVER_UNIT")
+    local learned = rowFor(ns, "dg:999:Gorewing the Lost")
+    check(learned, "a rare met is a row from then on"); equal(learned.kind, "rare")
+    state.units.mouseover = { name = "Vault Sentinel", classification = "elite", level = 23 }
+    Mock.fire("UPDATE_MOUSEOVER_UNIT")
+    equal(rowFor(ns, "dg:999:Vault Sentinel"), nil, "an elite with an ordinary level is trash to an addon: not learned")
+    state.units.mouseover = { name = "The Warden", classification = "worldboss", level = -1 }
+    Mock.fire("UPDATE_MOUSEOVER_UNIT")
+    equal(rowFor(ns, "dg:999:The Warden").kind, "boss", "a skull-level or raid boss is learned as a boss")
+    check(rowFor(ns, "dg:999:The Warden").slot < rowFor(ns, "dg:999:Gorewing the Lost").slot, "and sorts before the rares")
+    Mock.enterInstance(nil)
+    Mock.enterInstance(999, "The Sunken Vault", "party")
+    check(rowFor(ns, "dg:999:Gorewing the Lost"), "remembered for the next visit")
+    -- the name is the fallback key when the map id means nothing
+    Mock.enterInstance(0, "Wailing Caverns", "party")
+    check(rowFor(ns, "dg:Wailing Caverns:Lady Anacondra"), "known by its name")
+end)
+
+scenario("quest hints: 99-Year-Old Port names Mad Magglish though no tooltip ever will, and a hint taught by command works the same", function()
+    local PORT = 1699
+    local ns, state = start({}, function(s)
+        s.quests[PORT] = { title = "99-Year-Old Port", objectives = { { text = "99-Year-Old Port: 0/1", type = "item", finished = false, fulfilled = 0, required = 1 } } }
+        s.watched = { KOBOLDS, PORT }
+    end)
+    local port = rowFor(ns, PORT .. ":1")
+    check(port, "a row although the objective is an item and nobody's tooltip was read")
+    equal(port.names[1], "Mad Magglish"); equal(port.text, "Mad Magglish"); equal(port.progress, "0/1")
+    check(port.macro:find("/targetexact Mad Magglish", 1, true))
+
+    local OTHER = 1700
+    state.quests[OTHER] = { title = "A Fine Mess", objectives = { { text = "Mess Cleaned: 0/1", type = "item", finished = false, fulfilled = 0, required = 1 } } }
+    state.watched = { KOBOLDS, PORT, OTHER }
+    Mock.watchListChanged()
+    equal(rowFor(ns, OTHER .. ":1"), nil, "no hint, no tooltip yet: no row")
+    SlashCmdList.AKFOREVERTARGETER("hint add A Fine Mess = Messy Gnoll")
+    check(rowFor(ns, OTHER .. ":1"), "taught by command"); equal(rowFor(ns, OTHER .. ":1").names[1], "Messy Gnoll")
+    SlashCmdList.AKFOREVERTARGETER("hint list")
+    check(printed("A Fine Mess -> Messy Gnoll") and printed("99-Year-Old Port -> Mad Magglish"))
+    SlashCmdList.AKFOREVERTARGETER("hint remove A Fine Mess")
+    equal(rowFor(ns, OTHER .. ":1"), nil)
+    SlashCmdList.AKFOREVERTARGETER("hint add nonsense")
+    check(printed("usage: /akt hint add"))
+end)
+
 scenario("diagnostics and logout run; the report is SavedVariables-safe and holds no frame", function()
     local ns, state = start({}, function(s) s.watched = { KOBOLDS, DUST, TURNIN } end)
     state.units.mouseover = { name = "Kobold Miner", tooltip = { { QUEST_TITLE, "Gold Dust Exchange" }, { QUEST_OBJECTIVE, "Gold Dust: 2/10" } } }

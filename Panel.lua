@@ -45,6 +45,7 @@ local FLIGHT_TEXTURE = "Interface\\Minimap\\Tracking\\FlightMaster"
 local MACRO_LIMIT = 1000 -- a macrotext attribute takes 1023 characters
 local DEFAULT_POSITION = { point = "RIGHT", relativePoint = "RIGHT", x = -30, y = 0 }
 local DIM = 0.35
+local MARKED_KINDS = { mob = true, boss = true, rare = true } -- what gets a raid marker (a quest giver never)
 local ANY_BUTTON = "AKForeverTargeterAnyButton" -- the key binding clicks it: "CLICK AKForeverTargeterAnyButton:LeftButton"
 
 -- the Key Bindings screen reads this
@@ -145,14 +146,14 @@ function Panel.AnyMacroFor(list, markers)
         length = length + #line + 1
         return true
     end
-    for _, kind in ipairs({ "mob", "giver", "flightmaster" }) do
+    for _, kind in ipairs({ "mob", "boss", "rare", "giver", "flightmaster" }) do
         for _, want in ipairs(list) do
-            if want.kind == kind then
+            if want.kind == kind and not want.done then -- (a dead boss is not worth a line)
                 for _, name in ipairs(want.names) do
                     add("/targetexact [noexists] " .. name)
                 end
                 local marker = markers and markers[want.key]
-                if kind == "mob" and marker then
+                if MARKED_KINDS[kind] and marker then
                     add("/tm [exists,nodead] ~" .. marker)
                 end
             end
@@ -219,6 +220,15 @@ local function wanted()
         end
         end
     end
+    -- the instance you are in: its bosses and rare spawns, after the quests; a dead one goes last
+    if ns.Dungeons then
+        local entries, current = ns.Dungeons:Rows()
+        for index, entry in ipairs(entries or {}) do
+            add({ key = "dg:" .. current.key .. ":" .. entry.name, kind = entry.kind, questID = 0,
+                order = (entry.done and 800 or 500) + index, index = 0, names = { entry.name }, title = current.name,
+                progress = entry.done and "dead" or entry.kind, done = entry.done })
+        end
+    end
     -- flight master: if we know one for this map, add it at the end
     if ns:GetOption("flightmaster") and ns.db and ns.db.flightmasters then
         local mapID = type(C_Map) == "table" and type(C_Map.GetBestMapForUnit) == "function"
@@ -265,7 +275,12 @@ local function showTooltip(row)
         tooltip:AddLine("flight master for this zone", 0.8, 0.8, 0.8)
     elseif row.kind == "giver" then
         tooltip:AddLine("to turn the quest in", 0.8, 0.8, 0.8)
-    elseif row.marker then
+    elseif row.kind == "boss" then
+        tooltip:AddLine(row.done and "dungeon boss - dead" or "dungeon boss", 0.8, 0.8, 0.8)
+    elseif row.kind == "rare" then
+        tooltip:AddLine(row.done and "rare spawn - dead" or "rare spawn", 0.8, 0.8, 0.8)
+    end
+    if row.marker and row.kind ~= "giver" and row.kind ~= "flightmaster" then
         tooltip:AddLine("and mark it", 0.8, 0.8, 0.8)
     end
     if row.stale then
@@ -517,7 +532,7 @@ end
 
 -- what a row shows - none of it protected, so this runs in a fight too
 local function dress(row, want)
-    row.questTitle, row.names, row.deprio = want.title, want.names, want.deprio
+    row.questTitle, row.names, row.deprio, row.done = want.title, want.names, want.deprio, want.done or nil
     row.name:SetText(want.names[1] or "")
     row.progress:SetText(want.progress or "")
 end
@@ -558,7 +573,7 @@ local function fullSync()
             byKey[want.key] = row
         end
         local marker
-        if want.kind == "mob" and marking then -- (a quest giver is never marked)
+        if MARKED_KINDS[want.kind] and marking then -- (a quest giver is never marked)
             if not markerOf[want.key] then
                 markerOf[want.key] = nextMarker(inUse)
                 inUse[markerOf[want.key]] = true
@@ -580,8 +595,9 @@ local function fullSync()
             row.slot = slot
             work.placed = work.placed + 1
         end
-        if row:GetAlpha() ~= 1 then
-            row:SetAlpha(1)
+        local alpha = want.done and DIM or 1
+        if row:GetAlpha() ~= alpha then
+            row:SetAlpha(alpha)
         end
         if not row:IsShown() then
             row:Show()
@@ -627,7 +643,7 @@ local function combatPass()
         if want then
             dress(row, want)
             row.stale = (Panel.MacroFor(want.names, row.marker) ~= row.macro) or nil
-            row:SetAlpha(1)
+            row:SetAlpha(want.done and DIM or 1)
         else
             row.progress:SetText(Panel.IsHidden(key) and "hidden" or "done")
             row.stale = true
@@ -696,6 +712,7 @@ function Panel:Describe()
             alpha = row:GetAlpha(),
             stale = row.stale or false,
             deprio = row.deprio or false,
+            done = row.done or false,
             text = row.name:GetText(),
             progress = row.progress:GetText(),
         }

@@ -200,6 +200,7 @@ local OPTION_DEFAULTS = {
     menuSticky = true,    -- out of combat the menu stays open until you pick a marker or click elsewhere
     zoneOnly = true,      -- only quests whose business is on the map you are standing in get a row
     flightmaster = false, -- add the local flight master to the panel (learned from opening the taxi map)
+    dungeon = true,       -- in a dungeon or raid: rows for its bosses and rare spawns (Dungeons.lua)
 }
 
 -- The realm is squeezed ("Classic Beta PvE" -> "ClassicBetaPvE"): on a fresh login UnitFullName has no

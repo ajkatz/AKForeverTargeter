@@ -38,6 +38,23 @@ smooth.*
 `/akt` lists the commands: `on`, `off`, `mark on|off`, `menu`, `zone on|off`, `flightmaster on|off` (a row for the
 zone's flight master, learned when you open the taxi map; off by default), `hidden`, `unhide`, `reset`, `status`, `forget`, `diag`.
 
+## In a dungeon: the bosses and the rare spawns (0.2.0)
+
+Zone into a dungeon or raid and its bosses appear as rows, in order, with the known rare spawns after them -
+each the same secure `/targetexact` button as a quest row, with a marker, and part of the any-target key
+after the quest mobs. Forever does not load the Adventure Guide, so the client has no list to ask; the
+addon carries one (`Dungeons.lua`: the instances by map id, with the name as fallback), and what your group
+actually meets corrects and extends it: a rare (`UnitClassification` rare / rareelite) or a skull-level boss
+seen on your target, under the mouse or on a party member's target is remembered for that instance. A
+5-man boss with an ordinary level looks like elite trash to an addon, which is why the list exists. A boss
+seen dead goes dim and sorts last, so the panel doubles as "what is left"; a `/reload` keeps the marks,
+walking in afresh clears them. `/akt dungeon list` prints what is known about where you are, `/akt dungeon
+off` turns the rows off. Twelve rows fit; the rest wait until something is dead or hidden.
+
+**Quest hints** are for the mobs no tooltip will ever name: Mad Magglish, who holds the 99-Year-Old Port,
+stands stealthed in the Wailing Caverns cave. `/akt hint add 99-Year-Old Port = Mad Magglish` is built in;
+`/akt hint add <quest title> = <mob>` teaches more, `/akt hint list` and `/akt hint remove <title>` manage them.
+
 ## How it stays out of Blizzard's way
 
 Targeting and marking are protected actions, and this client compiles no secure snippets.

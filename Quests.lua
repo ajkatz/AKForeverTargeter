@@ -253,8 +253,56 @@ function Quests:Forget(questID)
     ns:Fire("TARGETS_CHANGED")
 end
 
+------------------------------------------------------------------------
+-- Hints: the mobs of quests whose tooltips never say. Mad Magglish holds the 99-Year-Old Port and stands
+-- stealthed in the Wailing Caverns cave; no mouseover will ever show that objective on him. A small
+-- built-in list by quest title, and '/akt hint add <quest title> = <mob>' for the ones you find yourself
+-- (db.hints[title] = { names }).
+------------------------------------------------------------------------
+local QUEST_HINTS = {
+    ["99-Year-Old Port"] = { "Mad Magglish" },
+}
+Quests.QUEST_HINTS = QUEST_HINTS
+
+function Quests:Hints(title)
+    if type(title) ~= "string" then
+        return nil
+    end
+    local names = {}
+    for _, name in ipairs(QUEST_HINTS[title] or {}) do
+        names[#names + 1] = name
+    end
+    local taught = ns.db and ns.db.hints and ns.db.hints[title]
+    for _, name in ipairs(type(taught) == "table" and taught or {}) do
+        names[#names + 1] = name
+    end
+    return #names > 0 and names or nil
+end
+
+function Quests:Teach(title, mobName)
+    if type(title) ~= "string" or title == "" or type(mobName) ~= "string" or mobName == "" or not ns.db then
+        return false
+    end
+    ns.db.hints = ns.db.hints or {}
+    ns.db.hints[title] = ns.db.hints[title] or {}
+    for _, name in ipairs(ns.db.hints[title]) do
+        if name == mobName then
+            return true
+        end
+    end
+    table.insert(ns.db.hints[title], mobName)
+    ns:Log("hint", { title = title, name = mobName })
+    return true
+end
+
+function Quests:Unteach(title)
+    if ns.db and ns.db.hints and title then
+        ns.db.hints[title] = nil
+    end
+end
+
 -- The mob names to try for one objective, the text's own name first, then the learned ones in
--- alphabetical order (a stable order keeps the macro text - and so the button - unchanged).
+-- alphabetical order (a stable order keeps the macro text - and so the button - unchanged), then the hints.
 -- nil: nothing to target.
 function Quests:Names(questID, objectiveIndex, objective)
     if not objective or objective.finished then
@@ -275,7 +323,12 @@ function Quests:Names(questID, objectiveIndex, objective)
         end
         table.sort(sorted)
         for _, name in ipairs(sorted) do
-            names[#names + 1] = name
+            names[#names + 1], seen[name] = name, true
+        end
+    end
+    for _, name in ipairs(self:Hints(self:Title(questID)) or {}) do
+        if not seen[name] then
+            names[#names + 1], seen[name] = name, true
         end
     end
     if #names == 0 then
@@ -283,6 +336,40 @@ function Quests:Names(questID, objectiveIndex, objective)
     end
     return names
 end
+
+ns:RegisterCommand("hint", "'/akt hint add 99-Year-Old Port = Mad Magglish' names the mob of a quest whose tooltips never will; '/akt hint list'; '/akt hint remove <quest title>'", function(rest)
+    local mode, args = string.match(rest or "", "^(%S*)%s*(.-)%s*$")
+    mode = string.lower(mode or "")
+    if mode == "add" then
+        local title, mob = string.match(args, "^(.-)%s*=%s*(.-)$")
+        if not (title and mob and title ~= "" and mob ~= "") then
+            ns:Print("usage: /akt hint add <quest title> = <mob name>")
+            return
+        end
+        Quests:Teach(title, mob)
+        ns:Print("hint: " .. title .. " -> " .. mob)
+        if ns.Panel then
+            ns.Panel:Sync()
+        end
+    elseif mode == "remove" then
+        Quests:Unteach(args)
+        ns:Print("hint removed for: " .. tostring(args))
+        if ns.Panel then
+            ns.Panel:Sync()
+        end
+    else
+        local count = 0
+        for title, names in pairs(QUEST_HINTS) do
+            print("   " .. title .. " -> " .. table.concat(names, ", ") .. " (built in)")
+            count = count + 1
+        end
+        for title, names in pairs(ns.db and ns.db.hints or {}) do
+            print("   " .. title .. " -> " .. table.concat(names, ", "))
+            count = count + 1
+        end
+        ns:Print(count .. " hint(s).")
+    end
+end)
 
 ------------------------------------------------------------------------
 -- The quest giver: db.givers[questID] = "Chief Hawkwind"
