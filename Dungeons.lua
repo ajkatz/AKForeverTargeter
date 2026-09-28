@@ -286,6 +286,32 @@ function Dungeons:Observe(unit)
     end
 end
 
+-- The client says so itself when a boss goes down: ENCOUNTER_END (success 1) and BOSS_KILL carry the
+-- encounter's name, whoever was targeting what. A listed or learned name that matches is crossed off.
+function Dungeons:EncounterEnded(encounterName, success)
+    if not ns.db or ns:GetOption("dungeon") == false then
+        return
+    end
+    local current = self.current
+    if not current or type(encounterName) ~= "string" or encounterName == "" then
+        return
+    end
+    if success ~= nil and success ~= 1 and success ~= true then
+        return -- a wipe: nobody is dead but us
+    end
+    local entry = store(current.key)
+    local known = listed(current, encounterName) or entry.learned[encounterName]
+    if known and not entry.killed[encounterName] then
+        entry.killed[encounterName] = true
+        ns:Log("dungeon_dead", { key = current.key, name = encounterName, how = "encounter" })
+        if ns.Panel then
+            ns.Panel:Sync()
+        end
+    elseif not known then
+        ns:Log("dungeon_encounter_unlisted", { key = current.key, name = encounterName })
+    end
+end
+
 -- Walking into an instance starts a visit: the kill marks of the last one are cleared. A /reload or a
 -- fresh login inside keeps them.
 local function enteredWorld(_, isInitialLogin, isReloadingUi)
@@ -326,6 +352,12 @@ ns:On("UNIT_TARGET", function(_, unit)
     if type(unit) == "string" and (string.find(unit, "^party%d$") or string.find(unit, "^raid%d+$")) then
         Dungeons:Observe(unit .. "target")
     end
+end)
+ns:On("ENCOUNTER_END", function(_, _, encounterName, _, _, success)
+    Dungeons:EncounterEnded(encounterName, success)
+end)
+ns:On("BOSS_KILL", function(_, _, encounterName)
+    Dungeons:EncounterEnded(encounterName, 1)
 end)
 
 function Dungeons:Describe()

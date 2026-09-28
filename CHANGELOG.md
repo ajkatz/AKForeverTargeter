@@ -6,9 +6,10 @@
   list of the instances with their bosses in order and their known rares (`/akt dungeon list` prints it,
   `/akt dungeon off` turns it off). Forever does not load the Adventure Guide, so the client has no list to
   ask; what your group meets corrects and extends it - a rare or a skull-level boss seen on your target,
-  under the mouse or on a party member's target is remembered for that instance. A boss seen dead goes
-  dim and sorts last, so the panel doubles as "what is left"; a `/reload` keeps the marks, walking in
-  afresh clears them. Bosses and rares are marked like quest mobs and join the any-target key after them.
+  under the mouse or on a party member's target is remembered for that instance. A boss that dies is
+  crossed off - a line through its name, dimmed, sorted last - so the panel doubles as "what is left";
+  heard from the client's encounter events and from a dead boss on anybody's target. A `/reload` keeps
+  the marks, walking in afresh clears them. Bosses and rares are marked like quest mobs and join the any-target key after them.
 - **Quest hints** for the mobs no tooltip will ever name: Mad Magglish, stealthed in the Wailing Caverns
   cave with the 99-Year-Old Port, is built in; `/akt hint add <quest title> = <mob>` teaches more.
 

@@ -1101,10 +1101,20 @@ scenario("a boss seen dead goes dim and sorts last; a rare met in an unlisted in
     check(math.abs(first.alpha - 0.35) < 0.01, "dim: alpha " .. tostring(first.alpha))
     check(first.slot > rowFor(ns, "dg:43:Mutanus the Devourer").slot, "sorted after the live bosses")
     check(not ns.Panel:Describe().any.macro:find("Lady Anacondra", 1, true), "the any key skips the dead")
+    check(frameFor("dg:43:Lady Anacondra").strike:IsShown(), "and crossed off: a line through the name")
+    check(not frameFor("dg:43:Lord Cobrahn").strike:IsShown(), "the living are not")
     -- a party member's target dying counts too
     state.units.party1target = { name = "Lord Cobrahn", dead = true }
     Mock.fire("UNIT_TARGET", "party1")
     equal(rowFor(ns, "dg:43:Lord Cobrahn").done, true, "seen dead on a party member's target")
+    -- and the client's own word, whoever was targeting what
+    Mock.fire("ENCOUNTER_END", 1, "Kresh", 1, 5, 0)
+    equal(rowFor(ns, "dg:43:Kresh").done, false, "a wipe crosses nobody off")
+    Mock.fire("ENCOUNTER_END", 1, "Kresh", 1, 5, 1)
+    equal(rowFor(ns, "dg:43:Kresh").done, true, "ENCOUNTER_END with success")
+    Mock.fire("BOSS_KILL", 2, "Lord Pythas")
+    equal(rowFor(ns, "dg:43:Lord Pythas").done, true, "BOSS_KILL")
+    check(frameFor("dg:43:Lord Pythas").strike:IsShown())
     -- a /reload keeps the marks; walking in afresh clears them
     Mock.fire("PLAYER_ENTERING_WORLD", false, true)
     equal(rowFor(ns, "dg:43:Lady Anacondra").done, true, "kept over a /reload")

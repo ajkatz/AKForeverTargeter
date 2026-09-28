@@ -46,9 +46,11 @@ after the quest mobs. Forever does not load the Adventure Guide, so the client h
 addon carries one (`Dungeons.lua`: the instances by map id, with the name as fallback), and what your group
 actually meets corrects and extends it: a rare (`UnitClassification` rare / rareelite) or a skull-level boss
 seen on your target, under the mouse or on a party member's target is remembered for that instance. A
-5-man boss with an ordinary level looks like elite trash to an addon, which is why the list exists. A boss
-seen dead goes dim and sorts last, so the panel doubles as "what is left"; a `/reload` keeps the marks,
-walking in afresh clears them. `/akt dungeon list` prints what is known about where you are, `/akt dungeon
+5-man boss with an ordinary level looks like elite trash to an addon, which is why the list exists. A boss that
+dies is **crossed off** - a line through its name, the row dimmed and sorted last - so the panel doubles as
+"what is left". The death is heard from the client's own encounter events (`ENCOUNTER_END`, `BOSS_KILL`)
+and from a dead boss on your target, under your mouse or on a party member's target; a `/reload` keeps
+the marks, walking in afresh clears them. `/akt dungeon list` prints what is known about where you are, `/akt dungeon
 off` turns the rows off. Twelve rows fit; the rest wait until something is dead or hidden.
 
 **Quest hints** are for the mobs no tooltip will ever name: Mad Magglish, who holds the 99-Year-Old Port,

@@ -488,6 +488,12 @@ local function newRow()
     row.name:SetPoint("RIGHT", row.progress, "LEFT", -4, 0)
     row.name:SetJustifyH("LEFT")
     row.name:SetWordWrap(false)
+    -- crossed off: a line through the name once the boss is dead
+    row.strike = row:CreateTexture(nil, "OVERLAY")
+    row.strike:SetHeight(1)
+    row.strike:SetPoint("LEFT", row.name, "LEFT", 0, 0)
+    row.strike:SetColorTexture(1, 1, 1, 0.8)
+    row.strike:Hide()
     row:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
     row:SetScript("OnEnter", function(self)
         ns.SafeCall(showTooltip, self)
@@ -535,6 +541,15 @@ local function dress(row, want)
     row.questTitle, row.names, row.deprio, row.done = want.title, want.names, want.deprio, want.done or nil
     row.name:SetText(want.names[1] or "")
     row.progress:SetText(want.progress or "")
+    if row.strike then
+        if want.done then
+            local width = type(row.name.GetStringWidth) == "function" and row.name:GetStringWidth() or 0
+            row.strike:SetWidth(math.max(1, width))
+            row.strike:Show()
+        else
+            row.strike:Hide()
+        end
+    end
 end
 
 ------------------------------------------------------------------------
