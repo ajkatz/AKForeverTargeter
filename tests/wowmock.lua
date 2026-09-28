@@ -808,8 +808,18 @@ function Mock.install(options)
 
     local ns = {}
     local root = options.root or "."
+    -- The game's Lua is 5.1: a global `unpack`, no table.unpack / table.pack. The addon's files run in an
+    -- environment with exactly that table library, so a 5.4-only call fails here before it fails in the game
+    -- (Dungeons.lua did, 2026-09-27: "attempt to call a nil value" at login).
+    local gameTable = {}
+    for key, value in pairs(table) do
+        if key ~= "unpack" and key ~= "pack" then
+            gameTable[key] = value
+        end
+    end
+    local gameEnv = setmetatable({ table = gameTable, unpack = table.unpack }, { __index = _G, __newindex = _G })
     for _, file in ipairs(readToc(root)) do
-        local chunk = assert(loadfile(root .. "/" .. file))
+        local chunk = assert(loadfile(root .. "/" .. file, "t", gameEnv))
         chunk(ADDON, ns)
     end
     Mock.ns = ns

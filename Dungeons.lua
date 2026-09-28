@@ -105,21 +105,28 @@ for _, data in pairs(INSTANCES) do
     BY_NAME[data.name] = data
 end
 
--- a client call that may not exist, may error, and may answer with a secret; up to ten results, or nil
+-- a client call that may not exist, may error, and may answer with a secret: all its results as a list, or
+-- nil. (The game's Lua is 5.1: no table.unpack, no table.pack - hence the varargs.)
+local function collect(ok, ...)
+    if not ok then
+        return nil
+    end
+    local out = {}
+    for i = 1, select("#", ...) do
+        local value = (select(i, ...))
+        if ns.IsSecret(value) then
+            return nil
+        end
+        out[i] = value
+    end
+    return out
+end
+
 local function many(fn, ...)
     if type(fn) ~= "function" then
         return nil
     end
-    local results = { pcall(fn, ...) }
-    if not results[1] then
-        return nil
-    end
-    for i = 2, 11 do
-        if ns.IsSecret(results[i]) then
-            return nil
-        end
-    end
-    return { select(2, table.unpack(results, 1, 11)) }
+    return collect(pcall(fn, ...))
 end
 
 local function readable(fn, ...)
