@@ -177,6 +177,30 @@ function Quests:IsHere(questID, set)
     return false, "elsewhere"
 end
 
+-- Is this a dungeon or raid quest? The client's own tag says (Enum.QuestTag, read in this build's
+-- QuestLogDocumentation: Raid 62, Dungeon 81, Heroic 85, Raid10 88, Raid25 89). It is what decides inside
+-- an instance, where this client will not say which map you are on. No tag, no answer, a secret: no.
+local DUNGEON_TAGS = { [62] = true, [81] = true, [85] = true, [88] = true, [89] = true }
+
+function Quests:IsDungeonQuest(questID)
+    if type(C_QuestLog) ~= "table" then
+        return false, "this client has no quest tags"
+    end
+    local answer = ns.Readable(C_QuestLog.GetQuestTagInfo, questID)
+    local info = answer and answer[1]
+    if type(info) ~= "table" then
+        return false, "no tag"
+    end
+    local id, name = info.tagID, info.tagName
+    if ns.IsSecret(id) or ns.IsSecret(name) then
+        return false, "the client would not say"
+    end
+    if DUNGEON_TAGS[id] then
+        return true, tostring(name)
+    end
+    return false, tostring(name)
+end
+
 function Quests:Title(questID)
     if type(C_QuestLog) ~= "table" then
         return nil

@@ -191,23 +191,36 @@ local function wanted()
         entry.deprio = Panel.IsDeprio(entry.key)
         list[#list + 1] = entry
     end
-    -- The instance you are in is asked first: inside one, the list is about ITS bosses. They go on top,
-    -- the quest mobs below them, the dead below those - and a turn-in for somebody out in the world is
-    -- not "here" (ten of those, always here, once left the cap of twelve no room for a single boss:
-    -- seen 2026-09-29 in the Wailing Caverns).
+    -- The instance you are in is asked first: inside one, the panel is about the DUNGEON and nothing
+    -- else. Its bosses and rares go on top, and of the quests only the dungeon's own get a row: what the
+    -- dungeon's map carries, or - this client will not say which map you are on in there (measured
+    -- 2026-09-29 in the Wailing Caverns: every tracked quest counted as here, and twelve rows from
+    -- Hillsbrad and the Barrens left no room for a single boss) - what the client tags as a dungeon or
+    -- raid quest. A turn-in needs the map: its NPC is outside. '/akt zone off' shows everything, in here too.
     local dungeonRows, dungeon
     if ns.Dungeons then
         dungeonRows, dungeon = ns.Dungeons:Rows()
     end
     local inside = dungeon ~= nil and dungeon.kind ~= "outside"
+    local dungeonNames = {}
+    for _, entry in ipairs(inside and dungeonRows or {}) do
+        dungeonNames[entry.name] = true
+    end
+    if inside and zoneOnly then
+        Panel.zoneNote = "in " .. tostring(dungeon.name) .. ": the dungeon's own only (" .. tostring(whyHere) .. ")"
+    end
 
     local Quests = ns.Quests
     for order, questID in ipairs(Quests:Tracked()) do
         local questTitle = Quests:Title(questID)
         local ready = Quests:ReadyForTurnIn(questID)
-        local here = (not zoneOnly) or hereSet == nil or (Quests:IsHere(questID, hereSet))
-        if here and inside and ready and zoneOnly and hereSet ~= nil and not hereSet[questID] then
-            here = false -- out in the world a turn-in is always here; in a dungeon only if its map carries the quest
+        local here
+        if not zoneOnly then
+            here = true
+        elseif inside then
+            here = (hereSet ~= nil and hereSet[questID] == true) or (not ready and Quests:IsDungeonQuest(questID))
+        else
+            here = hereSet == nil or Quests:IsHere(questID, hereSet)
         end
         if not here then
             elsewhereCount = elsewhereCount + 1
@@ -224,6 +237,18 @@ local function wanted()
             for _, objective in ipairs(Quests:Objectives(questID) or {}) do
                 if not objective.finished then
                     local names = Quests:Names(questID, objective.index, objective)
+                    if names and inside then
+                        -- a quest after a boss: the boss has its row already
+                        local others = false
+                        for _, name in ipairs(names) do
+                            if not dungeonNames[name] then
+                                others = true
+                            end
+                        end
+                        if not others then
+                            names = nil
+                        end
+                    end
                     if names then
                         local progress
                         if type(objective.numFulfilled) == "number" and type(objective.numRequired) == "number" and objective.numRequired > 0 then

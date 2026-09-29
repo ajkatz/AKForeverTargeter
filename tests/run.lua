@@ -1195,7 +1195,7 @@ scenario("quest hints: the 99-Year-Old Port names Mad Magglish though no tooltip
     check(printed("usage: /akt hint add"))
 end)
 
-scenario("ten turn-ins waiting out in the world leave the dungeon to its bosses: inside, a turn-in is here only if the dungeon's map carries it", function()
+scenario("in a dungeon the panel is about the dungeon: ten turn-ins and the quests of other zones wait outside; the dungeon's own quests are known by its map or by their tag", function()
     local SURNAMES = { "Ashfist", "Blackmane", "Coldeye", "Dunhoof", "Earthsong", "Farstride", "Grimtusk", "Highmane", "Ironhide", "Jadefang" }
     local ns, state = start({}, function(s)
         s.watched = { KOBOLDS }
@@ -1225,15 +1225,37 @@ scenario("ten turn-ins waiting out in the world leave the dungeon to its bosses:
     equal(rowFor(ns, "401:turnin").slot, 12, "somebody in here takes it")
     equal(rowFor(ns, "402:turnin"), nil)
 
-    -- a client that will not say what is on the map: every row stays - the bosses still on top, the turn-ins last
+    -- THIS client will not say which map you are on in there (measured): the dungeon's own quests are
+    -- known by their tag, everything else waits outside
     state.noQuestsOnMap = true
     Mock.fire("QUEST_LOG_UPDATE"); Mock.nextFrame()
+    equal(rowCount(ns), 9, "no map, no tag: the bosses and the rare - nothing from Hillsbrad")
+    equal(ns.Panel:Describe().elsewhere, 11)
+    check(ns.Panel:Describe().zoneNote:find("the dungeon's own only", 1, true), "the note says why: " .. tostring(ns.Panel:Describe().zoneNote))
+    state.quests[KOBOLDS].tag = { tagID = 81, tagName = "Dungeon" }
+    state.quests[403].tag = { tagID = 1, tagName = "Group" }
+    Mock.fire("QUEST_LOG_UPDATE"); Mock.nextFrame()
+    equal(rowFor(ns, KOBOLDS .. ":1").slot, 10, "a dungeon quest's mobs, below the bosses")
+    equal(rowCount(ns), 11, "a group quest is no dungeon quest")
+    state.quests[402].tag = { tagID = 62, tagName = "Raid" }
+    Mock.fire("QUEST_LOG_UPDATE"); Mock.nextFrame()
+    equal(rowFor(ns, "402:turnin"), nil, "a raid quest ready to turn in: its NPC is outside all the same")
+    state.secretApis.questTag = true
+    Mock.fire("QUEST_LOG_UPDATE"); Mock.nextFrame()
+    equal(rowCount(ns), 9, "a tag the client will not show is no tag")
+    state.secretApis.questTag = nil
+
+    -- '/akt zone off' shows everything, in here too: the bosses still on top, the turn-ins last
+    SlashCmdList.AKFOREVERTARGETER("zone off")
     equal(rowFor(ns, "dg:43:Lady Anacondra").slot, 1)
     equal(rowFor(ns, KOBOLDS .. ":1").slot, 10, "quest mobs below the dungeon")
     equal(rowFor(ns, "401:turnin").slot, 12, "turn-ins below those")
     equal(rowCount(ns), 20, "twenty rows fit inside")
     equal(rowFor(ns, "410:turnin"), nil, "the last turn-in is the one that waits")
+    SlashCmdList.AKFOREVERTARGETER("zone on")
+    state.quests[KOBOLDS].tag = nil
     state.noQuestsOnMap = nil
+    Mock.fire("QUEST_LOG_UPDATE"); Mock.nextFrame()
 
     -- a boss dies: below the quest mobs, above nothing but the turn-ins
     state.units.target = { name = "Lady Anacondra", dead = true, classification = "elite", level = 20 }
@@ -1245,6 +1267,32 @@ scenario("ten turn-ins waiting out in the world leave the dungeon to its bosses:
     Mock.enterInstance(nil)
     equal(rowCount(ns), 10, "back outside: the ten turn-ins (the kobolds' business is in the dungeon now)")
     equal(rowFor(ns, "dg:43:Lord Cobrahn"), nil)
+end)
+
+scenario("a quest after a boss takes no second row: the boss has one already", function()
+    local FANG = 914
+    local ns, state = start({}, function(s)
+        s.quests[FANG] = { title = "Leaders of the Fang", tag = { tagID = 81, tagName = "Dungeon" }, objectives = {
+            { text = "Lady Anacondra slain: 0/1", type = "monster", fulfilled = 0, required = 1 },
+            { text = "Druid of the Fang slain: 0/4", type = "monster", fulfilled = 0, required = 4 },
+        } }
+        s.watched = { FANG }
+    end)
+    check(rowFor(ns, FANG .. ":1"), "out in the world the quest's row is all there is")
+    state.noQuestsOnMap = true -- (as this client: no map in there)
+    Mock.enterInstance(43, "Wailing Caverns", "party", 279)
+    equal(rowFor(ns, FANG .. ":1"), nil, "inside, Lady Anacondra has her row as a boss")
+    equal(rowFor(ns, "dg:43:Lady Anacondra").slot, 1)
+    local druids = rowFor(ns, FANG .. ":2")
+    check(druids, "the quest's other mobs keep theirs"); equal(druids.slot, 10, "below the bosses and the rare")
+    check(druids.marker, "marked like any quest mob")
+    local any = ns.Panel:Describe().any.macro
+    local _, anacondras = any:gsub("Lady Anacondra", "")
+    equal(anacondras, 1, "and the any key names her once")
+    Mock.enterInstance(nil)
+    state.noQuestsOnMap = nil
+    Mock.fire("QUEST_LOG_UPDATE"); Mock.nextFrame()
+    check(rowFor(ns, FANG .. ":1"), "back outside the quest row is back")
 end)
 
 scenario("a client that will not call it an instance: the instance's own type decides, then a dungeon's map by a name on the list - and '/akt dungeon list' says what the client says", function()

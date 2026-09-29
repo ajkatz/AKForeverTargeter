@@ -55,11 +55,14 @@ and from a dead boss on your target, under your mouse or on a party member's tar
 the marks, walking in afresh clears them. `/akt dungeon list` prints what is known about where you are, `/akt dungeon
 off` turns the rows off.
 
-Inside, the panel is about the dungeon: its bosses and rares first, the quest mobs with business in there
-below them, the dead below those. Twenty rows fit (twelve out in the world). A quest ready to turn in is
-always "here" out in the world; inside it counts as elsewhere unless the dungeon's own map carries it - ten
-turn-ins for NPCs in town once left no room for a single boss. Markers go to the quest mobs first (the trash
-you pull), then to the bosses in order; the dead give theirs back.
+Inside, the panel is about the dungeon and nothing else: its bosses and rares first, the mobs of the
+dungeon's own quests below them, the dead below those. A quest is the dungeon's own when the dungeon's map
+carries it or - this client will not say which map you are on in there, measured in the Wailing Caverns -
+when the client tags it as a dungeon or raid quest (`C_QuestLog.GetQuestTagInfo`). Every other quest counts
+as elsewhere, and so does a quest ready to turn in: its NPC is outside. A quest that is after a boss takes
+no second row. Twenty rows fit (twelve out in the world); `/akt zone off` shows everything, in here too.
+Markers go to the quest mobs first (the trash you pull), then to the bosses in order; the dead give theirs
+back.
 
 The instance is recognised three ways, because a beta client need not agree with itself: `IsInInstance()`,
 the instance's own type from `GetInstanceInfo()`, and the world map under your feet (a dungeon's map by a

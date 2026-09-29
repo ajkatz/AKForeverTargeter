@@ -85,6 +85,8 @@ local function describeQuests()
             title = type(C_QuestLog) == "table" and ask(C_QuestLog.GetTitleForQuestID, questID) or "n/a",
             readyForTurnIn = ns.Quests:ReadyForTurnIn(questID),
             here = sanitize({ ns.Quests:IsHere(questID) }),
+            dungeonQuest = sanitize({ ns.Quests:IsDungeonQuest(questID) }),
+            tag = type(C_QuestLog) == "table" and ask(C_QuestLog.GetQuestTagInfo, questID) or "n/a",
             onMapFlag = type(C_QuestLog) == "table" and ask(C_QuestLog.GetInfo,
                 (select(1, (ns.Readable(C_QuestLog.GetLogIndexForQuestID, questID) or {})[1])) or 0) or "n/a",
             giverNames = ns.Quests:GiverNames(questID),

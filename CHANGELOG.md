@@ -4,9 +4,11 @@
 
 - **In a dungeon or raid, the bosses and the rare spawns are rows** the moment you zone in, **on top of
   the panel**: a built-in list of the instances with their bosses in order and their known rares
-  (`/akt dungeon list` prints it, `/akt dungeon off` turns it off). Inside, twenty rows fit instead of
-  twelve, the quest mobs come below the bosses, and a quest ready to turn in counts as elsewhere unless
-  the dungeon's own map carries it - its NPC is out in the world. Forever does not load the Adventure Guide, so the client has no list to
+  (`/akt dungeon list` prints it, `/akt dungeon off` turns it off). Inside, the panel is about the
+  dungeon and nothing else: of your quests only the dungeon's own get a row, below the bosses - what its
+  map carries, or what the client tags as a dungeon or raid quest, since this client will not say which
+  map you are on in there. A quest ready to turn in waits outside with its NPC, and a quest after a boss
+  takes no second row. Twenty rows fit instead of twelve; `/akt zone off` shows everything. Forever does not load the Adventure Guide, so the client has no list to
   ask; what your group meets corrects and extends it - a rare or a skull-level boss seen on your target,
   under the mouse or on a party member's target is remembered for that instance. A boss that dies is
   crossed off - a line through its name, dimmed, sorted last - so the panel doubles as "what is left";

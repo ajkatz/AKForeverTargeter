@@ -759,6 +759,13 @@ function Mock.install(options)
             GetNumQuestWatches = function() return #state.watched end,
             GetQuestIDForQuestWatchIndex = function(index) return state.watched[index] end,
             GetTitleForQuestID = function(questID) return state.quests[questID] and state.quests[questID].title end,
+            -- quest.tag = { tagID = 81, tagName = "Dungeon" }; most quests have none
+            GetQuestTagInfo = function(questID)
+                if state.secretApis.questTag then
+                    return Mock.SECRET
+                end
+                return state.quests[questID] and state.quests[questID].tag or nil
+            end,
             GetLogIndexForQuestID = function(questID) return state.quests[questID] and questID or nil end, -- (log index = id here)
             GetInfo = function(logIndex)
                 local quest = state.quests[logIndex]
