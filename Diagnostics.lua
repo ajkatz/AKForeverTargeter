@@ -146,14 +146,28 @@ function Diagnostics:Collect()
     return sanitize(report)
 end
 
-function Diagnostics:Save()
-    if ns.db then
-        ns.db.diag = self:Collect()
+-- A report asked for with '/akt diag' is taken while the world is there; the one at logout is not (no
+-- objectives, no map - every report since 2026-09-28 shows it). So the one you asked for is kept, and
+-- the logout's goes beside it. Either way `panel.decisions` is the panel's last full pass, taken live.
+function Diagnostics:Save(asked)
+    if not ns.db then
+        return
+    end
+    local report = self:Collect()
+    if asked then
+        report.asked = true
+        ns.db.diag = report
+        Diagnostics.asked = true
+    elseif Diagnostics.asked then
+        ns.db.diagAtLogout = report
+    else
+        ns.db.diag = report
+        ns.db.diagAtLogout = nil
     end
 end
 
 ns:RegisterCommand("diag", "save a report into the settings file (then /reload, so that it is written to disk)", function()
-    Diagnostics:Save()
+    Diagnostics:Save(true)
     ns:Print("report saved - /reload (or log out) writes it to disk. Panel:", ns.Panel.state)
 end)
 

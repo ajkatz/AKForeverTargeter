@@ -27,6 +27,18 @@
 - **Quest hints** for the mobs no tooltip will ever name: Mad Magglish, stealthed in the Wailing Caverns
   cave with the 99-Year-Old Port (the quest is "Trouble at the Docks"), is built in;
   `/akt hint add <quest title or objective> = <mob>` teaches more.
+- **A row before you have met him.** A bounty names its mob in the title (`WANTED: Bruuz`) and a trophy
+  names its owner (`Besseleth's Fang`; `Serena's Head` in the quest "Serena Bloodfeather"). An objective
+  that names nobody gets that name as a guess - the row's tooltip says so - until the mob's own tooltip
+  has taught the real one.
+- **When more rows want in than fit**, the ones that wait are no longer simply the last in the tracker:
+  the quest you picked in the tracker always keeps its rows, the nearest quests stay where the client
+  gives distances, and somebody to turn in to gives way before a mob does. The note beside the title
+  counts them (`+3 more`).
+- **The quest you picked in the tracker is here**, wherever the map puts it.
+- `/akt diag`: the report you asked for is kept (the one taken at logout, with the world already coming
+  down, goes beside it), and it carries the panel's last pass quest by quest - here or not and why, what
+  each objective names, which rows did not fit.
 
 ## 0.1.0 - first public release
 

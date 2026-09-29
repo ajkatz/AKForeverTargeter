@@ -727,6 +727,11 @@ function Mock.install(options)
     global("GetZoneText", function() return state.zone end)
     global("GetSubZoneText", function() return state.subzone end)
     global("GetMinimapZoneText", function() return state.subzone ~= "" and state.subzone or state.zone end)
+    function Mock.superTrack(questID) -- you clicked a quest in the tracker (nil: none)
+        state.superTracked = questID
+        Mock.fire("SUPER_TRACKING_CHANGED")
+        Mock.nextFrame()
+    end
     function Mock.setSubZone(name) -- you walked into another part of the zone
         state.subzone = name or ""
         Mock.fire("ZONE_CHANGED")
@@ -793,6 +798,17 @@ function Mock.install(options)
                 end
                 return list
             end,
+            -- quest.yards: how far its business is; most quests in these scenarios say nothing
+            GetDistanceSqToQuest = function(questID)
+                if state.secretApis.questDistance then
+                    return Mock.SECRET
+                end
+                local quest = state.quests[questID]
+                if not quest or not quest.yards then
+                    return
+                end
+                return quest.yards * quest.yards, quest.otherContinent ~= true
+            end,
             ReadyForTurnIn = function(questID)
                 if state.secretApis.readyForTurnIn then
                     return Mock.SECRET
@@ -823,6 +839,13 @@ function Mock.install(options)
         })
         -- the quest frame's own idea of which quest is on screen
     global("GetQuestID", function() return state.dialogQuest or 0 end)
+    -- the quest picked in the tracker
+    global("C_SuperTrack", { GetSuperTrackedQuestID = function()
+        if state.secretApis.superTracked then
+            return Mock.SECRET
+        end
+        return state.superTracked
+    end })
     global("GetQuestLogCompletionText", function(logIndex)
             local quest = state.quests[logIndex]
             return quest and quest.completionText or nil

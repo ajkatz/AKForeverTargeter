@@ -35,6 +35,16 @@ smooth.*
   looked right and was not: standing in Durotar with Kalimdor on screen, Barrens quests counted as here.)
   The end of a flight re-reads the map (`PLAYER_CONTROL_GAINED`): in the air the zone events fire at the
   borders, the landing itself fires none.
+- **A row before you have met him:** an objective that names nobody - a trophy, as bounties have them -
+  gets a guess. A bounty names its mob in the title (`WANTED: Bruuz`), a trophy names its owner
+  (`Besseleth's Fang`; `Serena's Head` in the quest "Serena Bloodfeather", where the title has the whole
+  name). The row's tooltip says it is a guess; the mob's own tooltip replaces it with the real name. Only a
+  single trophy counts (`0/1`), and a guess that fits nobody targets nobody.
+- **Twelve rows fit. When more want in**, the quest you picked in the tracker keeps its rows, then the
+  nearest quests where the client gives distances (`C_QuestLog.GetDistanceSqToQuest`); a mob nobody knows
+  the distance to counts as near, somebody to turn in to as far, and what you lowered waits first. The rows
+  that stay keep the tracker's order, and the note beside the title counts the rest (`+3 more`).
+- **The quest you picked in the tracker is here**, wherever the map puts it (`C_SuperTrack`).
 - Tracked quests only: what is in your quest tracker is what gets rows. Drag the panel by its title.
 
 `/akt` lists the commands: `on`, `off`, `mark on|off`, `menu`, `zone on|off`, `flightmaster on|off` (a row for the

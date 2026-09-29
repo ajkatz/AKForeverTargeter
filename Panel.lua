@@ -64,6 +64,9 @@ local pending = false  -- a change waits for the end of the fight
 local syncBooked = false
 local hiddenCount = 0
 local elsewhereCount = 0 -- rows left out because that quest's business is on another map
+local cutCount = 0       -- rows that did not fit
+local decisions = {}     -- the last pass, quest by quest: here or not and why, what each objective names - for the report
+local cutKeys = {}       -- ... and the rows that did not fit
 local hiddenList = {} -- what a right-click hid, in the tracker's order: { key, names, title }
 
 ------------------------------------------------------------------------
@@ -169,9 +172,53 @@ end
 -- What you are after right now: { { key, kind, questID, order, index, names, title, progress } ... } - from
 -- the quest log, the tracked quests in the order of the tracker.
 ------------------------------------------------------------------------
-local function wanted()
+-- More rows than fit. What stays: the quest you picked in the tracker; then whatever is nearest, where
+-- the client gives distances; a mob nobody knows the distance to counts as near (a row too many is better
+-- than a row missing), somebody to turn in to as far - ten turn-ins for people in town must not push the
+-- mobs in front of you off the panel. What you lowered goes first of all. Those that stay keep their order.
+local function rankOf(entry, position)
+    local rank = position * 0.001 -- the tracker's order settles a tie
+    if entry.deprio then
+        rank = rank + 3e6
+    end
+    if entry.picked then
+        return rank
+    end
+    if entry.distance then
+        return rank + 1 + math.min(entry.distance, 9e5)
+    end
+    if entry.kind == "giver" or entry.kind == "flightmaster" then
+        return rank + 1e6
+    end
+    return rank + 1
+end
+
+local function keepNearest(list, cap)
+    local ranked = {}
+    for position, entry in ipairs(list) do
+        entry.rank = rankOf(entry, position)
+        ranked[position] = entry
+    end
+    table.sort(ranked, function(a, b)
+        return a.rank < b.rank
+    end)
+    local staying = {}
+    for position = 1, cap do
+        staying[ranked[position]] = true
+    end
+    local kept = {}
+    for _, entry in ipairs(list) do
+        if staying[entry] then
+            kept[#kept + 1] = entry
+        end
+    end
+    return kept
+end
+
+-- record: keep what was decided, quest by quest, for the report (the full pass does; a pass in combat does not)
+local function wanted(record)
     local list = {}
-    hiddenCount, elsewhereCount = 0, 0
+    hiddenCount, elsewhereCount, cutCount = 0, 0, 0
     if not ns:GetOption("tracker") then
         return list
     end
@@ -186,10 +233,11 @@ local function wanted()
         if Panel.IsHidden(entry.key) then
             hiddenCount = hiddenCount + 1
             hiddenList[hiddenCount] = entry
-            return
+            return false
         end
         entry.deprio = Panel.IsDeprio(entry.key)
         list[#list + 1] = entry
+        return true
     end
     -- The instance you are in is asked first: inside one, the panel is about the DUNGEON and nothing
     -- else. Its bosses and rares go on top, and of the quests only the dungeon's own get a row: what the
@@ -211,16 +259,48 @@ local function wanted()
     end
 
     local Quests = ns.Quests
+    -- The quest you picked in the tracker is the one you are on: here wherever the map puts it, and the
+    -- last to give way when the panel is full. (Out in the world; a dungeon is about the dungeon.)
+    local picked = (not inside) and Quests:SuperTracked() or nil
+    local decided, guessSeen = 0, {}
     for order, questID in ipairs(Quests:Tracked()) do
         local questTitle = Quests:Title(questID)
         local ready = Quests:ReadyForTurnIn(questID)
-        local here
+        local here, why
         if not zoneOnly then
-            here = true
+            here, why = true, "the zone filter is off"
         elseif inside then
-            here = (hereSet ~= nil and hereSet[questID] == true) or (not ready and Quests:IsDungeonQuest(questID))
+            if hereSet ~= nil and hereSet[questID] == true then
+                here, why = true, "on the dungeon's map"
+            elseif ready then
+                here, why = false, "a turn-in: its NPC is outside"
+            else
+                here, why = Quests:IsDungeonQuest(questID)
+                why = (here and "a dungeon quest: " or "not the dungeon's: ") .. tostring(why)
+            end
+        elseif questID == picked then
+            here, why = true, "the quest you picked in the tracker"
+        elseif hereSet == nil then
+            here, why = true, "the client would not say"
         else
-            here = hereSet == nil or Quests:IsHere(questID, hereSet)
+            here, why = Quests:IsHere(questID, hereSet)
+        end
+        -- (not asked in a fight: the rows cannot change there anyway)
+        local distance = (here and not inside and not InCombatLockdown()) and Quests:Distance(questID) or nil
+        local decision
+        if record then
+            decided = decided + 1
+            decision = decisions[decided]
+            if not decision then
+                decision = { objectives = {} }
+                decisions[decided] = decision
+            end
+            decision.id, decision.title, decision.here, decision.why = questID, questTitle, here, why
+            decision.ready, decision.picked, decision.rows = ready, (questID == picked) or nil, 0
+            decision.yards = distance and math.floor(distance + 0.5) or nil
+            for index = #decision.objectives, 1, -1 do
+                decision.objectives[index] = nil
+            end
         end
         if not here then
             elsewhereCount = elsewhereCount + 1
@@ -228,15 +308,34 @@ local function wanted()
         if here then
         if ready then
             local names = Quests:GiverNames(questID)
+            if decision then
+                decision.objectives[1] = "turn in -> " .. (names and table.concat(names, ", ") or "nobody known")
+            end
             if names then
                 -- (inside, with a client that will not say what is on the map: last of all)
-                add({ key = questID .. ":turnin", kind = "giver", questID = questID, order = (inside and 900 or 0) + order, index = 0,
-                    names = names, title = questTitle, progress = "turn in" })
+                local added = add({ key = questID .. ":turnin", kind = "giver", questID = questID, order = (inside and 900 or 0) + order, index = 0,
+                    names = names, title = questTitle, progress = "turn in", distance = distance, picked = questID == picked })
+                if added and decision then
+                    decision.rows = decision.rows + 1
+                end
             end
         else
             for _, objective in ipairs(Quests:Objectives(questID) or {}) do
                 if not objective.finished then
-                    local names = Quests:Names(questID, objective.index, objective)
+                    local names, guessed = Quests:Names(questID, objective.index, objective)
+                    if decision then
+                        decision.objectives[#decision.objectives + 1] = tostring(objective.text) .. " [" .. tostring(objective.type) .. "] -> "
+                            .. (names and table.concat(names, ", ") or "no name") .. (guessed and " (a guess)" or "")
+                    end
+                    if names and guessed then
+                        -- one guess names the quest's mob once, however many nameless objectives it has
+                        local seenKey = questID .. ":" .. names[1]
+                        if guessSeen[seenKey] then
+                            names = nil
+                        else
+                            guessSeen[seenKey] = true
+                        end
+                    end
                     if names and inside then
                         -- a quest after a boss: the boss has its row already
                         local others = false
@@ -254,12 +353,24 @@ local function wanted()
                         if type(objective.numFulfilled) == "number" and type(objective.numRequired) == "number" and objective.numRequired > 0 then
                             progress = objective.numFulfilled .. "/" .. objective.numRequired
                         end
-                        add({ key = questID .. ":" .. objective.index, kind = "mob", questID = questID, order = order,
-                            index = objective.index, names = names, title = questTitle, progress = progress })
+                        local added = add({ key = questID .. ":" .. objective.index, kind = "mob", questID = questID, order = order,
+                            index = objective.index, names = names, title = questTitle, progress = progress,
+                            distance = distance, picked = questID == picked, guessed = guessed })
+                        if added and decision then
+                            decision.rows = decision.rows + 1
+                        end
                     end
                 end
             end
         end
+        end
+    end
+    if record then
+        for index = #decisions, decided + 1, -1 do
+            decisions[index] = nil
+        end
+        for index = #cutKeys, 1, -1 do
+            cutKeys[index] = nil
         end
     end
     -- the bosses and rare spawns: on top inside, the dead below the quest mobs; the rares of the cave in
@@ -297,8 +408,25 @@ local function wanted()
         return a.index < b.index
     end)
     local cap = inside and MAX_ROWS_INSIDE or MAX_ROWS
-    while #list > cap do
-        table.remove(list)
+    if #list > cap then
+        cutCount = #list - cap
+        -- (inside, the order is the rank: the dungeon first, and what does not fit is at the bottom)
+        local kept = inside and list or keepNearest(list, cap)
+        if record then
+            local staying = {}
+            for position = 1, cap do
+                staying[kept[position]] = true
+            end
+            for _, entry in ipairs(list) do
+                if not staying[entry] then
+                    cutKeys[#cutKeys + 1] = entry.key .. " " .. tostring(entry.names[1])
+                end
+            end
+        end
+        list = kept
+        while #list > cap do
+            table.remove(list)
+        end
     end
     return list
 end
@@ -324,6 +452,9 @@ local function showTooltip(row)
         tooltip:AddLine(row.done and "dungeon boss - dead" or "dungeon boss", 0.8, 0.8, 0.8)
     elseif row.kind == "rare" then
         tooltip:AddLine(row.done and "rare spawn - dead" or "rare spawn", 0.8, 0.8, 0.8)
+    end
+    if row.guessed then
+        tooltip:AddLine("a guess from the quest's wording - his own tooltip will tell", 0.8, 0.8, 0.8)
     end
     if row.marker and row.kind ~= "giver" and row.kind ~= "flightmaster" then
         tooltip:AddLine("and mark it", 0.8, 0.8, 0.8)
@@ -393,6 +524,9 @@ local function updateTitle()
     end
     -- the title never changes; the counts sit in a small dim note beside it, which the title yields to
     local notes = {}
+    if cutCount > 0 then
+        notes[#notes + 1] = "+" .. cutCount .. " more"
+    end
     if hiddenCount > 0 then
         notes[#notes + 1] = hiddenCount .. " hidden"
     end
@@ -584,6 +718,7 @@ end
 -- what a row shows - none of it protected, so this runs in a fight too
 local function dress(row, want)
     row.questTitle, row.names, row.deprio, row.done = want.title, want.names, want.deprio, want.done or nil
+    row.guessed = want.guessed or nil
     row.name:SetText(want.names[1] or "")
     row.progress:SetText(want.progress or "")
     if row.strike then
@@ -607,7 +742,8 @@ local function release(row)
 end
 
 local function fullSync()
-    local list = wanted()
+    local list = wanted(true)
+    Panel.decidedAt = type(date) == "function" and date("%Y-%m-%d %H:%M:%S") or nil
     local keep = {}
     for _, want in ipairs(list) do
         keep[want.key] = true
@@ -694,6 +830,7 @@ local function fullSync()
         panel:SetShown(#list > 0)
     end
     Panel.state = (#list == 0 and "nothing to target" or string.format("%d target(s) of interest", #list))
+        .. (cutCount > 0 and string.format(", %d more did not fit", cutCount) or "")
         .. (hiddenCount > 0 and string.format(", %d hidden", hiddenCount) or "")
         .. (elsewhereCount > 0 and string.format(", %d quest(s) elsewhere", elsewhereCount) or "")
     updateTitle()
@@ -801,6 +938,11 @@ function Panel:Describe()
         inUse = list,
         hidden = hiddenCount,
         elsewhere = elsewhereCount,
+        -- the last full pass, taken while the world was there: why each tracked quest has its rows or none
+        cut = cutCount,
+        cutRows = cutKeys,
+        decisions = decisions,
+        decidedAt = Panel.decidedAt,
         zoneOnly = ns:GetOption("zoneOnly") ~= false,
         zoneNote = Panel.zoneNote,
         pending = pending,
@@ -832,7 +974,8 @@ end)
 -- underneath is whatever the client makes of the sky; the landing itself fires no zone event, so the rows of
 -- the zone you left stayed until the next quest event (seen 2026-09-28). The ride's end is a moment to look.
 for _, event in ipairs({ "QUEST_LOG_UPDATE", "QUEST_WATCH_LIST_CHANGED", "QUEST_ACCEPTED", "QUEST_REMOVED", "QUEST_TURNED_IN",
-    "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "ZONE_CHANGED", "ZONE_CHANGED_INDOORS", "PLAYER_CONTROL_GAINED" }) do
+    "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "ZONE_CHANGED", "ZONE_CHANGED_INDOORS", "PLAYER_CONTROL_GAINED",
+    "SUPER_TRACKING_CHANGED" }) do
     ns:On(event, bookSync)
 end
 

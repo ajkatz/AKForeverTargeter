@@ -201,6 +201,33 @@ function Quests:IsDungeonQuest(questID)
     return false, tostring(name)
 end
 
+-- The quest you picked in the tracker (the client calls it super-tracked): the one you are on.
+function Quests:SuperTracked()
+    if type(C_SuperTrack) ~= "table" then
+        return nil
+    end
+    local answer = ns.Readable(C_SuperTrack.GetSuperTrackedQuestID)
+    local id = answer and answer[1]
+    if type(id) == "number" and id > 0 then
+        return id
+    end
+    return nil
+end
+
+-- How far to the quest's business, in yards - nil when the client will not say, or says it is on
+-- another continent.
+function Quests:Distance(questID)
+    if type(C_QuestLog) ~= "table" then
+        return nil
+    end
+    local answer = ns.Readable(C_QuestLog.GetDistanceSqToQuest, questID)
+    local squared, onContinent = answer and answer[1], answer and answer[2]
+    if type(squared) ~= "number" or squared < 0 or onContinent == false then
+        return nil
+    end
+    return math.sqrt(squared)
+end
+
 function Quests:Title(questID)
     if type(C_QuestLog) ~= "table" then
         return nil
@@ -333,9 +360,76 @@ function Quests:Unteach(title)
     end
 end
 
+------------------------------------------------------------------------
+-- Guesses. A bounty names its mob in the title ("WANTED: Bruuz"); a trophy names its owner ("Besseleth's
+-- Fang", or "Serena's Head" in the quest "Serena Bloodfeather", where the title has the whole name). Until
+-- his own tooltip has taught the name that is all there is to go by - and the moment you are looking for
+-- somebody is exactly when you have not met him yet. Only for an objective that has no name at all; a
+-- guess that fits nobody targets nobody.
+------------------------------------------------------------------------
+local APOSTROPHES = { "'s", "\226\128\153s" } -- the plain one and the typographic one
+
+local function tidy(text)
+    text = string.gsub(text, "^[%s%p]+", "")
+    text = string.gsub(text, "[%s!%?%.,;:\"]+$", "")
+    if text == "" then
+        return nil
+    end
+    return text
+end
+
+-- "WANTED: Bruuz" -> "Bruuz"; any other title -> nil
+function Quests.Wanted(title)
+    if type(title) ~= "string" then
+        return nil
+    end
+    local rest = string.match(title, "^%s*[Ww][Aa][Nn][Tt][Ee][Dd]%s*[:!%-]+%s*(.+)$")
+    return rest and tidy(rest) or nil
+end
+
+-- "Besseleth's Fang" -> "Besseleth"
+function Quests.Owner(text)
+    local core = Quests.CoreText(text)
+    if not core then
+        return nil
+    end
+    for _, apostrophe in ipairs(APOSTROPHES) do
+        local at = string.find(core, apostrophe .. " ", 1, true)
+        if at and at > 1 then
+            return tidy(string.sub(core, 1, at - 1))
+        end
+    end
+    return nil
+end
+
+function Quests:Guesses(questID, objective)
+    local title = self:Title(questID)
+    local wanted = Quests.Wanted(title)
+    local names = {}
+    if wanted then
+        names[1] = wanted
+    end
+    if objective.type == "item" and objective.numRequired == 1 then
+        local owner = Quests.Owner(objective.text)
+        if owner then
+            local whole = wanted or (type(title) == "string" and tidy(title)) or nil
+            if whole and string.lower(string.sub(whole, 1, #owner)) == string.lower(owner) then
+                owner = whole
+            end
+            if owner ~= names[1] then
+                names[#names + 1] = owner
+            end
+        end
+    end
+    if #names == 0 then
+        return nil
+    end
+    return names
+end
+
 -- The mob names to try for one objective, the text's own name first, then the learned ones in
 -- alphabetical order (a stable order keeps the macro text - and so the button - unchanged), then the hints.
--- nil: nothing to target.
+-- With none of those: the guesses, and `true` as a second result to say so. nil: nothing to target.
 function Quests:Names(questID, objectiveIndex, objective)
     if not objective or objective.finished then
         return nil
@@ -367,6 +461,10 @@ function Quests:Names(questID, objectiveIndex, objective)
         end
     end
     if #names == 0 then
+        local guesses = self:Guesses(questID, objective)
+        if guesses then
+            return guesses, true
+        end
         return nil
     end
     return names

@@ -1366,6 +1366,139 @@ scenario("the cave in front of an instance has rare spawns of its own: out in th
     check(syncs < ns.Panel.work.syncs, "the panel followed")
 end)
 
+scenario("a bounty names its mob in the title, a trophy names its owner: a row before you have met him - a guess, until his own tooltip tells", function()
+    local BRUUZ, SPIDER, SERENA, SYNDICATE, RATIONS, TWINS = 92706, 6284, 876, 549, 1300, 1301
+    local ns, state = start({}, function(s)
+        s.quests[BRUUZ] = { title = "WANTED: Bruuz", objectives = { { text = "0/1 Bruuz's Head", type = "item", fulfilled = 0, required = 1 } } }
+        s.quests[SPIDER] = { title = "Arachnophobia", objectives = { { text = "0/1 Besseleth's Fang", type = "item", fulfilled = 0, required = 1 } } }
+        s.quests[SERENA] = { title = "Serena Bloodfeather", objectives = { { text = "Serena's Head: 0/1", type = "item", fulfilled = 0, required = 1 } } }
+        s.quests[SYNDICATE] = { title = "WANTED: Syndicate Personnel", objectives = {
+            { text = "0/10 Syndicate Rogue slain", type = "monster", fulfilled = 0, required = 10 },
+            { text = "0/10 Syndicate Watchman slain", type = "monster", fulfilled = 0, required = 10 } } }
+        s.quests[RATIONS] = { title = "Supplies", objectives = { { text = "0/5 Hunter's Ration", type = "item", fulfilled = 0, required = 5 } } }
+        s.quests[TWINS] = { title = "Wanted: Gorm!", objectives = {
+            { text = "0/1 Gorm's Head", type = "item", fulfilled = 0, required = 1 },
+            { text = "0/1 Gorm's Seal", type = "item", fulfilled = 0, required = 1 } } }
+        s.watched = { BRUUZ, SPIDER, SERENA, SYNDICATE, RATIONS, TWINS }
+    end)
+    local bruuz = rowFor(ns, BRUUZ .. ":1")
+    check(bruuz, "a row for the bounty before anybody has seen him")
+    equal(bruuz.names[1], "Bruuz"); equal(bruuz.text, "Bruuz"); equal(bruuz.progress, "0/1")
+    equal(#bruuz.names, 1, "the title and the trophy agree: named once")
+    check(bruuz.macro:find("/targetexact Bruuz", 1, true), "a secure /targetexact like any other row")
+    check(frameFor(BRUUZ .. ":1").guessed, "the row knows it is a guess")
+    equal(rowFor(ns, SPIDER .. ":1").names[1], "Besseleth", "a trophy names its owner")
+    equal(rowFor(ns, SERENA .. ":1").names[1], "Serena Bloodfeather", "and the quest's title has the whole name")
+    equal(rowFor(ns, SYNDICATE .. ":1").names[1], "Syndicate Rogue")
+    equal(#rowFor(ns, SYNDICATE .. ":1").names, 1, "a kill objective names its mob itself: no guess on top")
+    check(not frameFor(SYNDICATE .. ":1").guessed)
+    equal(rowFor(ns, RATIONS .. ":1"), nil, "five of something are nobody's trophy")
+    equal(rowFor(ns, TWINS .. ":1").names[1], "Gorm", "the exclamation mark is not his")
+    equal(rowFor(ns, TWINS .. ":2"), nil, "one guess, one row - however many trophies he carries")
+    equal(ns.Quests.Wanted("Wanted! Otto and Falconcrest"), "Otto and Falconcrest")
+    equal(ns.Quests.Wanted("The Wanted Man"), nil, "a title that only mentions the word is no bounty")
+    equal(ns.Quests.Owner("0/1 Mankrik\226\128\153s Letter"), "Mankrik", "the typographic apostrophe too")
+
+    -- his own tooltip tells: the guess steps back
+    state.units.mouseover = { name = "Bruuz the Butcher", tooltip = { { QUEST_TITLE, "WANTED: Bruuz" }, { QUEST_OBJECTIVE, "0/1 Bruuz's Head" } } }
+    Mock.fire("UPDATE_MOUSEOVER_UNIT")
+    Mock.nextFrame()
+    equal(rowFor(ns, BRUUZ .. ":1").names[1], "Bruuz the Butcher", "what his tooltip says is what he is called")
+    equal(#rowFor(ns, BRUUZ .. ":1").names, 1)
+    check(not frameFor(BRUUZ .. ":1").guessed, "and the row is no guess any more")
+
+    -- the report says what each objective names, guess or not
+    local said
+    for _, decision in ipairs(ns.Panel:Describe().decisions) do
+        if decision.id == SPIDER then
+            said = decision.objectives[1]
+        end
+    end
+    equal(said, "0/1 Besseleth's Fang [item] -> Besseleth (a guess)")
+end)
+
+scenario("more rows than fit: turn-ins give way first, the nearest quests stay where the client gives distances, the quest you picked always stays - and the note says how many wait", function()
+    local SURNAMES = { "Ashfist", "Blackmane", "Coldeye", "Dunhoof", "Earthsong" }
+    local ns, state = start({}, function(s)
+        s.watched = {}
+        for index, surname in ipairs(SURNAMES) do -- five turn-ins, first in the tracker
+            local id = 400 + index
+            s.quests[id] = { title = "Errand " .. index, complete = true, completionText = "Speak with Holt " .. surname .. ".",
+                objectives = { { text = "Thing: 1/1", type = "item", finished = true, fulfilled = 1, required = 1 } } }
+            s.watched[#s.watched + 1] = id
+        end
+        for index = 1, 10 do -- ten kill quests after them
+            local id = 500 + index
+            s.quests[id] = { title = "Hunt " .. index, objectives = { { text = "Beast " .. index .. " slain: 0/5", type = "monster", fulfilled = 0, required = 5 } } }
+            s.watched[#s.watched + 1] = id
+        end
+    end)
+    local function note()
+        return ns.Panel.header.note.__text
+    end
+    -- nobody knows any distance: every mob stays, the turn-ins at the far end of the tracker give way
+    equal(rowCount(ns), 12)
+    for index = 1, 10 do
+        check(rowFor(ns, (500 + index) .. ":1"), "mob " .. index .. " has its row")
+    end
+    check(rowFor(ns, "401:turnin") and rowFor(ns, "402:turnin"), "two turn-ins still fit")
+    equal(rowFor(ns, "403:turnin"), nil); equal(rowFor(ns, "405:turnin"), nil)
+    check(rowFor(ns, "401:turnin").slot < rowFor(ns, "501:1").slot, "those that stay keep the tracker's order")
+    equal(ns.Panel.state, "12 target(s) of interest, 3 more did not fit")
+    equal(note(), "+3 more", "the note says how many wait")
+    equal(#ns.Panel:Describe().cutRows, 3); equal(ns.Panel:Describe().cutRows[1], "403:turnin Holt Coldeye", "and the report names them")
+
+    -- the client gives distances: somebody to turn in to thirty yards away stays, the far ones go
+    state.quests[405].yards = 30
+    for index = 1, 10 do
+        state.quests[500 + index].yards = 2000 + index
+    end
+    state.quests[510].yards = 50
+    Mock.fire("QUEST_LOG_UPDATE"); Mock.nextFrame()
+    check(rowFor(ns, "405:turnin"), "thirty yards away: that one stays")
+    check(rowFor(ns, "401:turnin") and not rowFor(ns, "402:turnin"), "the others by the tracker's order")
+    equal(rowCount(ns), 12)
+
+    -- three more hunts, far away: the farthest are the ones that wait
+    for index = 11, 13 do
+        local id = 500 + index
+        state.quests[id] = { title = "Hunt " .. index, yards = 5000 + index, objectives = { { text = "Beast " .. index .. " slain: 0/5", type = "monster", fulfilled = 0, required = 5 } } }
+        state.watched[#state.watched + 1] = id
+    end
+    Mock.watchListChanged()
+    equal(rowCount(ns), 12)
+    check(rowFor(ns, "405:turnin") and rowFor(ns, "510:1") and rowFor(ns, "501:1") and rowFor(ns, "511:1"), "the nearest twelve")
+    equal(rowFor(ns, "512:1"), nil); equal(rowFor(ns, "513:1"), nil); equal(rowFor(ns, "401:turnin"), nil)
+    equal(note(), "+6 more")
+
+    -- the quest you picked in the tracker always stays - the farthest of them all
+    Mock.superTrack(513)
+    check(rowFor(ns, "513:1"), "picked: it has its row")
+    equal(rowFor(ns, "511:1"), nil, "and the next farthest gave way")
+    equal(rowCount(ns), 12)
+
+    -- ... and is here wherever the map puts it
+    state.quests[512].map = 1413
+    Mock.fire("QUEST_LOG_UPDATE"); Mock.nextFrame()
+    equal(rowFor(ns, "512:1"), nil, "the Barrens are elsewhere")
+    Mock.superTrack(512)
+    check(rowFor(ns, "512:1"), "but the quest you picked is the one you are on")
+    local why
+    for _, decision in ipairs(ns.Panel:Describe().decisions) do
+        if decision.id == 512 then
+            why = decision
+        end
+    end
+    equal(why.why, "the quest you picked in the tracker"); equal(why.picked, true); equal(why.yards, 5012); equal(why.rows, 1)
+    Mock.superTrack(nil)
+    equal(rowFor(ns, "512:1"), nil)
+
+    -- what you lowered is the first to wait
+    ns.Panel:SetDeprio("510:1", true)
+    Mock.fire("QUEST_LOG_UPDATE"); Mock.nextFrame()
+    equal(rowFor(ns, "510:1"), nil, "fifty yards away, but you said it matters less")
+end)
+
 scenario("diagnostics and logout run; the report is SavedVariables-safe and holds no frame", function()
     local ns, state = start({}, function(s) s.watched = { KOBOLDS, DUST, TURNIN } end)
     state.units.mouseover = { name = "Kobold Miner", tooltip = { { QUEST_TITLE, "Gold Dust Exchange" }, { QUEST_OBJECTIVE, "Gold Dust: 2/10" } } }
@@ -1376,6 +1509,12 @@ scenario("diagnostics and logout run; the report is SavedVariables-safe and hold
     Mock.fire("PLAYER_LOGOUT")
 
     local report = AKForeverTargeterDB.diag
+    equal(report.asked, true, "the report you asked for is the one that is kept")
+    check(AKForeverTargeterDB.diagAtLogout, "the logout's goes beside it")
+    equal(#report.panel.decisions, 3, "the panel's last pass, quest by quest")
+    equal(report.panel.decisions[1].title, "Kobold Camp Cleanup"); equal(report.panel.decisions[1].here, true); equal(report.panel.decisions[1].rows, 2)
+    equal(report.panel.decisions[1].objectives[1], "Kobold Vermin slain: 3/10 [monster] -> Kobold Vermin")
+    check(report.panel.decisions[3].objectives[1]:find("turn in -> Holt Thunderhorn", 1, true), "who to turn in to: " .. tostring(report.panel.decisions[3].objectives[1]))
     equal(report.addonVersion, "0.1.0-test")
     equal(report.quests[1].objectives[1].mobFromText, "Kobold Vermin")
     equal(report.quests[1].objectives[1].numbers, "3/10")
