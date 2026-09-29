@@ -12,6 +12,14 @@
 -- client lets an addon see - is marked killed for this visit: its row goes dim and sorts last, so the panel
 -- doubles as "what is left". A /reload keeps the marks; walking in afresh clears them.
 --
+-- WHERE YOU ARE is asked three ways, because a beta client need not agree with itself: IsInInstance(), the
+-- instance's own type from GetInstanceInfo(), and the world map under your feet (a DUNGEON's map by a name
+-- on the list). What the client said is logged whenever the answer changes (dungeon_where), and
+-- '/akt dungeon list' prints it when the answer is "nowhere".
+--
+-- THE CAVE IN FRONT of an instance is not the instance: out in the world, where the subzone carries the
+-- instance's name, its own rare spawns are rows - after the quest rows, as extras.
+--
 -- Rules as everywhere in this addon: only reads on units, every answer through the secret check, nothing
 -- protected touched here (Panel.lua places the rows, out of combat).
 local _, ns = ...
@@ -25,10 +33,10 @@ local INSTANCES = {
         bosses = { "Oggleflint", "Taragaman the Hungerer", "Jergosh the Invoker", "Bazzalan" }, rares = {} },
     [43] = { name = "Wailing Caverns",
         bosses = { "Lady Anacondra", "Lord Cobrahn", "Kresh", "Lord Pythas", "Skum", "Lord Serpentis", "Verdan the Everliving", "Mutanus the Devourer" },
-        rares = { "Deviate Faerie Dragon", "Trigore the Lasher", "Boahn" } },
+        rares = { "Deviate Faerie Dragon" } },
     [36] = { name = "The Deadmines",
         bosses = { "Rhahk'Zor", "Sneed's Shredder", "Sneed", "Gilnid", "Mr. Smite", "Captain Greenskin", "Edwin VanCleef", "Cookie" },
-        rares = { "Miner Johnson", "Brainwashed Noble", "Marisa du'Paige" } },
+        rares = { "Miner Johnson" } },
     [33] = { name = "Shadowfang Keep",
         bosses = { "Rethilgore", "Razorclaw the Butcher", "Baron Silverlaine", "Commander Springvale", "Odo the Blindwatcher", "Fenrus the Devourer", "Wolf Master Nandos", "Archmage Arugal" },
         rares = { "Deathsworn Captain" } },
@@ -48,7 +56,7 @@ local INSTANCES = {
         bosses = { "Tuten'kash", "Mordresh Fire Eye", "Glutton", "Plaguemaw the Rotting", "Amnennar the Coldbringer" }, rares = { "Ragglesnout" } },
     [70] = { name = "Uldaman",
         bosses = { "Revelosh", "Baelog", 'Eric "The Swift"', "Olaf", "Ironaya", "Obsidian Sentinel", "Ancient Stone Keeper", "Galgann Firehammer", "Grimlok", "Archaedas" },
-        rares = { "Digmaster Shovelphlange" } },
+        rares = {} },
     [209] = { name = "Zul'Farrak",
         bosses = { "Antu'sul", "Theka the Martyr", "Witch Doctor Zum'rah", "Nekrum Gutchewer", "Shadowpriest Sezz'ziz", "Sergeant Bly", "Hydromancer Velratha", "Gahz'rilla", "Chief Ukorz Sandscalp", "Ruuzlu" },
         rares = { "Dustwraith", "Zerillis", "Sandarr Dunereaver" } },
@@ -100,6 +108,16 @@ local INSTANCES = {
 }
 Dungeons.INSTANCES = INSTANCES
 
+-- The caves in FRONT of an instance, keyed by the subzone's name. (In the first 0.2.0 these rares sat in
+-- the instance's list, where nobody could ever meet them: Trigore the Lasher and Boahn live before the
+-- Wailing Caverns portal, not behind it.)
+local OUTSIDE = {
+    ["Wailing Caverns"] = { name = "Wailing Caverns, outside", bosses = {}, rares = { "Trigore the Lasher", "Boahn" } },
+    ["The Deadmines"] = { name = "The Deadmines, outside", bosses = {}, rares = { "Marisa du'Paige", "Brainwashed Noble" } },
+    ["Uldaman"] = { name = "Uldaman, outside", bosses = {}, rares = { "Digmaster Shovelphlange" } },
+}
+Dungeons.OUTSIDE = OUTSIDE
+
 local BY_NAME = {} -- the instance's name is the fallback key, should this client number its maps differently
 for _, data in pairs(INSTANCES) do
     BY_NAME[data.name] = data
@@ -147,27 +165,76 @@ end
 ------------------------------------------------------------------------
 -- Where you are
 ------------------------------------------------------------------------
--- { key, name, kind = "party" | "raid", data } for a dungeon or raid, nil anywhere else (or when the client will not say)
-function Dungeons:Current()
+local DUNGEON_MAP = (type(Enum) == "table" and type(Enum.UIMapType) == "table" and Enum.UIMapType.Dungeon) or 4
+
+local function plain(value)
+    if ns.IsSecret(value) then
+        return nil
+    end
+    return value
+end
+
+-- Everything the client will say about where you are - readable values only, nothing but strings, numbers
+-- and booleans (it goes into the log as it is).
+function Dungeons:Where()
     local inInstance = many(IsInInstance)
-    if not inInstance or not inInstance[1] then
-        return nil
-    end
-    local kind = inInstance[2]
-    if kind ~= "party" and kind ~= "raid" then
-        return nil
-    end
     local info = many(GetInstanceInfo)
-    if not info then
-        return nil
+    local facts = {
+        inInstance = inInstance and inInstance[1] or false,
+        kind = inInstance and inInstance[2] or nil,
+        name = info and info[1] or nil,
+        infoKind = info and info[2] or nil,
+        mapID = info and info[8] or nil,
+        zone = readable(GetRealZoneText),
+        subzone = readable(GetSubZoneText),
+        minimap = readable(GetMinimapZoneText),
+    }
+    if type(C_Map) == "table" then
+        local uiMap = readable(C_Map.GetBestMapForUnit, "player")
+        if type(uiMap) == "number" then
+            facts.uiMap = uiMap
+            local mapInfo = readable(C_Map.GetMapInfo, uiMap)
+            if type(mapInfo) == "table" then
+                facts.mapName, facts.mapType = plain(mapInfo.name), plain(mapInfo.mapType)
+            end
+        end
     end
-    local name, mapID = info[1], info[8]
-    local data = (type(mapID) == "number" and INSTANCES[mapID]) or (type(name) == "string" and BY_NAME[name]) or nil
-    local key = (type(mapID) == "number" and mapID ~= 0 and tostring(mapID)) or (type(name) == "string" and name ~= "" and name) or nil
-    if not key then
-        return nil
+    return facts
+end
+
+-- { key, name, kind = "party" | "raid" | "outside", data, how } for a dungeon, a raid or the cave in front
+-- of one; nil anywhere else (or when the client will not say). `how` names what decided.
+function Dungeons:Current(facts)
+    facts = facts or self:Where()
+    local kind, how
+    if facts.inInstance == true and (facts.kind == "party" or facts.kind == "raid") then
+        kind, how = facts.kind, "IsInInstance"
+    elseif facts.infoKind == "party" or facts.infoKind == "raid" then
+        kind, how = facts.infoKind, "GetInstanceInfo" -- IsInInstance said no (or nothing); the instance's own type says yes
     end
-    return { key = key, name = (data and data.name) or name or ("instance " .. key), kind = kind, data = data }
+    if kind then
+        local name, mapID = facts.name, facts.mapID
+        local data = (type(mapID) == "number" and INSTANCES[mapID]) or (type(name) == "string" and BY_NAME[name]) or nil
+        local key = (type(mapID) == "number" and mapID ~= 0 and tostring(mapID)) or (type(name) == "string" and name ~= "" and name) or nil
+        if key then
+            return { key = key, name = (data and data.name) or name or ("instance " .. key), kind = kind, data = data, how = how }
+        end
+    end
+    -- neither would say so: a DUNGEON's map under your feet, by a name on the list, is one all the same
+    -- (a listed name only - an unlisted map of that type could be anything)
+    if facts.mapType == DUNGEON_MAP and type(facts.mapName) == "string" and BY_NAME[facts.mapName] then
+        local data = BY_NAME[facts.mapName]
+        return { key = data.name, name = data.name, kind = "party", data = data, how = "the map" }
+    end
+    -- out in the world, in the cave in front of one
+    for _, field in ipairs({ "subzone", "minimap" }) do
+        local text = facts[field]
+        local data = type(text) == "string" and OUTSIDE[text] or nil
+        if data then
+            return { key = "out:" .. text, name = data.name, kind = "outside", data = data, how = "the " .. field }
+        end
+    end
+    return nil
 end
 
 local function listed(current, name)
@@ -269,6 +336,9 @@ function Dungeons:Observe(unit)
     local changed = false
     if not known then
         local kind = kindOf(unit)
+        if kind == "boss" and current.kind == "outside" then
+            kind = nil -- out in the world a skull level is just somebody bigger than you
+        end
         if kind then
             entry.learned[name] = kind
             known = kind
@@ -314,26 +384,40 @@ end
 
 -- Walking into an instance starts a visit: the kill marks of the last one are cleared. A /reload or a
 -- fresh login inside keeps them.
-local function enteredWorld(_, isInitialLogin, isReloadingUi)
-    local current = Dungeons:Current()
+local function enteredWorld(event, isInitialLogin, isReloadingUi)
+    local facts = Dungeons:Where()
+    local current = Dungeons:Current(facts)
     local key = current and current.key or nil
-    if key ~= Dungeons.visitKey then
+    local moved = key ~= Dungeons.visitKey
+    if moved then
         Dungeons.visitKey = key
         if key and not isInitialLogin and not isReloadingUi and ns.db then
             store(key).killed = {}
-            ns:Log("dungeon_entered", { key = key, name = current.name, kind = current.kind, listed = current.data ~= nil })
+            ns:Log("dungeon_entered", { key = key, name = current.name, kind = current.kind, listed = current.data ~= nil, how = current.how })
         end
     end
+    -- what the client said at the moment it mattered: the report's own look is taken at logout, with the
+    -- world already coming down (it said "Eastern Kingdoms" in Orgrimmar, 2026-09-28)
+    if moved or event == "PLAYER_ENTERING_WORLD" then
+        ns:Log("dungeon_where", facts)
+    end
     Dungeons.current = current
-    if ns.Panel then
+    -- a subzone changes every few steps: the panel is only asked when that changed the answer
+    if ns.Panel and (moved or event ~= "ZONE_CHANGED") then
         ns.Panel:Sync()
     end
 end
 
 ns:On("PLAYER_ENTERING_WORLD", enteredWorld)
 ns:On("ZONE_CHANGED_NEW_AREA", function()
-    enteredWorld(nil, false, false)
+    enteredWorld("ZONE_CHANGED_NEW_AREA", false, false)
 end)
+-- the cave in front of an instance is a subzone: walking in and out of it fires these
+for _, event in ipairs({ "ZONE_CHANGED", "ZONE_CHANGED_INDOORS" }) do
+    ns:On(event, function()
+        enteredWorld("ZONE_CHANGED", false, false)
+    end)
+end
 
 ns:On("UPDATE_MOUSEOVER_UNIT", function()
     Dungeons:Observe("mouseover")
@@ -375,7 +459,8 @@ function Dungeons:Describe()
     local info = many(GetInstanceInfo)
     return {
         option = ns:GetOption("dungeon") ~= false,
-        current = current and { key = current.key, name = current.name, kind = current.kind, listed = current.data ~= nil } or "not in an instance",
+        current = current and { key = current.key, name = current.name, kind = current.kind, listed = current.data ~= nil, how = current.how } or "not in an instance",
+        where = self:Where(), -- (taken at logout, this is the world coming down: the log's dungeon_where entries are the ones to trust)
         instanceInfo = info and { name = info[1], type = info[2], difficultyID = info[3], mapID = info[8] } or "unreadable",
         learned = learned,
         killed = killed,
@@ -401,10 +486,16 @@ ns:RegisterCommand("dungeon", "'/akt dungeon off': no rows for the instance's bo
         current = Dungeons:Current()
     end
     if not current then
-        ns:Print("not in a dungeon or raid.")
+        -- what the client says, to be read out in a bug report
+        local facts = Dungeons:Where()
+        ns:Print("not in a dungeon or raid. The client says: in an instance = " .. tostring(facts.inInstance) .. " (" .. tostring(facts.kind)
+            .. "); instance '" .. tostring(facts.name) .. "' (" .. tostring(facts.infoKind) .. ", map " .. tostring(facts.mapID)
+            .. "); zone '" .. tostring(facts.zone) .. "' / '" .. tostring(facts.subzone)
+            .. "'; world map " .. tostring(facts.uiMap) .. " '" .. tostring(facts.mapName) .. "' (type " .. tostring(facts.mapType) .. ").")
         return
     end
-    ns:Print(current.name .. (current.data and "" or " (not in the built-in list: what you meet is remembered)") .. ":")
+    ns:Print(current.name .. (current.data and "" or " (not in the built-in list: what you meet is remembered)")
+        .. " - known by " .. tostring(current.how) .. ":")
     for _, row in ipairs(rows or {}) do
         print("   " .. row.name .. " - " .. row.kind .. (row.source == "learned" and ", learned" or "") .. (row.done and ", dead" or ""))
     end

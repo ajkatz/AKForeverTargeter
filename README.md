@@ -42,9 +42,9 @@ zone's flight master, learned when you open the taxi map; off by default), `hidd
 
 ## In a dungeon: the bosses and the rare spawns (0.2.0)
 
-Zone into a dungeon or raid and its bosses appear as rows, in order, with the known rare spawns after them -
-each the same secure `/targetexact` button as a quest row, with a marker, and part of the any-target key
-after the quest mobs. Forever does not load the Adventure Guide, so the client has no list to ask; the
+Zone into a dungeon or raid and its bosses appear as rows **on top of the panel**, in order, with the known
+rare spawns after them - each the same secure `/targetexact` button as a quest row, with a marker, and part
+of the any-target key after the quest mobs. Forever does not load the Adventure Guide, so the client has no list to ask; the
 addon carries one (`Dungeons.lua`: the instances by map id, with the name as fallback), and what your group
 actually meets corrects and extends it: a rare (`UnitClassification` rare / rareelite) or a skull-level boss
 seen on your target, under the mouse or on a party member's target is remembered for that instance. A
@@ -53,11 +53,29 @@ dies is **crossed off** - a line through its name, the row dimmed and sorted las
 "what is left". The death is heard from the client's own encounter events (`ENCOUNTER_END`, `BOSS_KILL`)
 and from a dead boss on your target, under your mouse or on a party member's target; a `/reload` keeps
 the marks, walking in afresh clears them. `/akt dungeon list` prints what is known about where you are, `/akt dungeon
-off` turns the rows off. Twelve rows fit; the rest wait until something is dead or hidden.
+off` turns the rows off.
+
+Inside, the panel is about the dungeon: its bosses and rares first, the quest mobs with business in there
+below them, the dead below those. Twenty rows fit (twelve out in the world). A quest ready to turn in is
+always "here" out in the world; inside it counts as elsewhere unless the dungeon's own map carries it - ten
+turn-ins for NPCs in town once left no room for a single boss. Markers go to the quest mobs first (the trash
+you pull), then to the bosses in order; the dead give theirs back.
+
+The instance is recognised three ways, because a beta client need not agree with itself: `IsInInstance()`,
+the instance's own type from `GetInstanceInfo()`, and the world map under your feet (a dungeon's map by a
+name on the list). `/akt dungeon list` says which one knew; out of any instance it prints what the client
+says about where you are, and the same goes into the log (`dungeon_where`) whenever the answer changes.
+
+**The cave in front of an instance** is not the instance, and has rare spawns of its own: Trigore the
+Lasher and Boahn before the Wailing Caverns portal, Marisa du'Paige and the Brainwashed Noble in the mine
+before the Deadmines, Digmaster Shovelphlange in the dig before Uldaman. Out in the world, where the subzone
+carries the instance's name, they are rows after the quest rows.
 
 **Quest hints** are for the mobs no tooltip will ever name: Mad Magglish, who holds the 99-Year-Old Port,
-stands stealthed in the Wailing Caverns cave. `/akt hint add 99-Year-Old Port = Mad Magglish` is built in;
-`/akt hint add <quest title> = <mob>` teaches more, `/akt hint list` and `/akt hint remove <title>` manage them.
+stands stealthed in the Wailing Caverns cave. The quest is "Trouble at the Docks" and the bottle its one
+objective; a hint is found by either, so `/akt hint add 99-Year-Old Port = Mad Magglish` - built in - is
+what it looks like. `/akt hint add <quest title or objective> = <mob>` teaches more, `/akt hint list` and
+`/akt hint remove <title or objective>` manage them.
 
 ## How it stays out of Blizzard's way
 

@@ -36,6 +36,7 @@ local BACKDROP = {
     insets = { left = 4, right = 4, top = 4, bottom = 4 },
 }
 local MAX_ROWS = 12
+local MAX_ROWS_INSIDE = 20 -- in a dungeon or raid: its bosses and rares, and the quest mobs below them
 local MARKER_ORDER = { 8, 7, 6, 5, 4, 3, 2, 1 } -- skull first: the classic "kill this" marker
 local MARKER_TEXTURE = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_"
 local PLAIN_TEXTURE = "Interface\\Minimap\\Tracking\\Target"
@@ -46,6 +47,7 @@ local MACRO_LIMIT = 1000 -- a macrotext attribute takes 1023 characters
 local DEFAULT_POSITION = { point = "RIGHT", relativePoint = "RIGHT", x = -30, y = 0 }
 local DIM = 0.35
 local MARKED_KINDS = { mob = true, boss = true, rare = true } -- what gets a raid marker (a quest giver never)
+local MARK_FIRST = { "mob", "boss", "rare" } -- who picks a marker first, whatever the order of the rows
 local ANY_BUTTON = "AKForeverTargeterAnyButton" -- the key binding clicks it: "CLICK AKForeverTargeterAnyButton:LeftButton"
 
 -- the Key Bindings screen reads this
@@ -189,18 +191,33 @@ local function wanted()
         entry.deprio = Panel.IsDeprio(entry.key)
         list[#list + 1] = entry
     end
+    -- The instance you are in is asked first: inside one, the list is about ITS bosses. They go on top,
+    -- the quest mobs below them, the dead below those - and a turn-in for somebody out in the world is
+    -- not "here" (ten of those, always here, once left the cap of twelve no room for a single boss:
+    -- seen 2026-09-29 in the Wailing Caverns).
+    local dungeonRows, dungeon
+    if ns.Dungeons then
+        dungeonRows, dungeon = ns.Dungeons:Rows()
+    end
+    local inside = dungeon ~= nil and dungeon.kind ~= "outside"
+
     local Quests = ns.Quests
     for order, questID in ipairs(Quests:Tracked()) do
         local questTitle = Quests:Title(questID)
+        local ready = Quests:ReadyForTurnIn(questID)
         local here = (not zoneOnly) or hereSet == nil or (Quests:IsHere(questID, hereSet))
+        if here and inside and ready and zoneOnly and hereSet ~= nil and not hereSet[questID] then
+            here = false -- out in the world a turn-in is always here; in a dungeon only if its map carries the quest
+        end
         if not here then
             elsewhereCount = elsewhereCount + 1
         end
         if here then
-        if Quests:ReadyForTurnIn(questID) then
+        if ready then
             local names = Quests:GiverNames(questID)
             if names then
-                add({ key = questID .. ":turnin", kind = "giver", questID = questID, order = order, index = 0,
+                -- (inside, with a client that will not say what is on the map: last of all)
+                add({ key = questID .. ":turnin", kind = "giver", questID = questID, order = (inside and 900 or 0) + order, index = 0,
                     names = names, title = questTitle, progress = "turn in" })
             end
         else
@@ -220,14 +237,16 @@ local function wanted()
         end
         end
     end
-    -- the instance you are in: its bosses and rare spawns, after the quests; a dead one goes last
-    if ns.Dungeons then
-        local entries, current = ns.Dungeons:Rows()
-        for index, entry in ipairs(entries or {}) do
-            add({ key = "dg:" .. current.key .. ":" .. entry.name, kind = entry.kind, questID = 0,
-                order = (entry.done and 800 or 500) + index, index = 0, names = { entry.name }, title = current.name,
-                progress = entry.done and "dead" or entry.kind, done = entry.done })
+    -- the bosses and rare spawns: on top inside, the dead below the quest mobs; the rares of the cave in
+    -- front of an instance come after the quests, as extras
+    for index, entry in ipairs(dungeonRows or {}) do
+        local order = (entry.done and 800 or 500) + index
+        if inside then
+            order = (entry.done and 700 or -1000) + index
         end
+        add({ key = "dg:" .. dungeon.key .. ":" .. entry.name, kind = entry.kind, questID = 0,
+            order = order, index = 0, names = { entry.name }, title = dungeon.name,
+            progress = entry.done and "dead" or entry.kind, done = entry.done })
     end
     -- flight master: if we know one for this map, add it at the end
     if ns:GetOption("flightmaster") and ns.db and ns.db.flightmasters then
@@ -252,7 +271,8 @@ local function wanted()
         end
         return a.index < b.index
     end)
-    while #list > MAX_ROWS do
+    local cap = inside and MAX_ROWS_INSIDE or MAX_ROWS
+    while #list > cap do
         table.remove(list)
     end
     return list
@@ -575,9 +595,24 @@ local function fullSync()
     end
 
     local marking = ns:GetOption("mark")
+    -- Markers go by KIND, whatever the order of the rows: the quest mobs first (the trash you pull), then
+    -- the bosses, then the rares. The dead give theirs back; a quest giver is never marked.
+    for _, want in ipairs(list) do
+        if want.done or not (MARKED_KINDS[want.kind] and marking) then
+            markerOf[want.key] = nil
+        end
+    end
     local inUse = {}
     for _, marker in pairs(markerOf) do
         inUse[marker] = true
+    end
+    for _, kind in ipairs(MARK_FIRST) do
+        for _, want in ipairs(list) do
+            if want.kind == kind and marking and not want.done and not markerOf[want.key] then
+                markerOf[want.key] = nextMarker(inUse)
+                inUse[markerOf[want.key]] = true
+            end
+        end
     end
     local work = Panel.work
     for slot, want in ipairs(list) do
@@ -587,14 +622,7 @@ local function fullSync()
             row.key = want.key
             byKey[want.key] = row
         end
-        local marker
-        if MARKED_KINDS[want.kind] and marking then -- (a quest giver is never marked)
-            if not markerOf[want.key] then
-                markerOf[want.key] = nextMarker(inUse)
-                inUse[markerOf[want.key]] = true
-            end
-            marker = markerOf[want.key]
-        end
+        local marker = markerOf[want.key]
 
         local macro = Panel.MacroFor(want.names, marker)
         if row.macro ~= macro then

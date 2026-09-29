@@ -96,6 +96,7 @@ end
 -- Every map that is still a zone or finer also counts the map it sits inside, so standing in Orgrimmar
 -- shows Durotar's business. The walk stops at the continent: Kalimdor would bring the Barrens back.
 local CONTINENT = 2 -- C_Map mapType: 0 cosmic, 1 world, 2 continent, 3 zone, and finer above that
+local DUNGEON = 4
 local MAX_HOPS = 3
 
 local function mapsAround(map)
@@ -105,6 +106,9 @@ local function mapsAround(map)
         info = info and info[1]
         if type(info) ~= "table" then
             break
+        end
+        if info.mapType == DUNGEON then
+            break -- a dungeon's map stands alone: the zone around its entrance is not where you are
         end
         local parent = info.parentMapID
         local parentInfo = type(parent) == "number" and parent > 0 and ns.Readable(C_Map.GetMapInfo, parent)
@@ -259,7 +263,11 @@ end
 -- built-in list by quest title, and '/akt hint add <quest title> = <mob>' for the ones you find yourself
 -- (db.hints[title] = { names }).
 ------------------------------------------------------------------------
+-- Keyed by the quest's TITLE or by an OBJECTIVE's own text (what the tracker shows: the item's name) -
+-- people call a quest by either. The port quest is "Trouble at the Docks" (read from a saved report,
+-- 2026-09-28); the bottle is its one objective.
 local QUEST_HINTS = {
+    ["Trouble at the Docks"] = { "Mad Magglish" },
     ["99-Year-Old Port"] = { "Mad Magglish" },
 }
 Quests.QUEST_HINTS = QUEST_HINTS
@@ -326,9 +334,12 @@ function Quests:Names(questID, objectiveIndex, objective)
             names[#names + 1], seen[name] = name, true
         end
     end
-    for _, name in ipairs(self:Hints(self:Title(questID)) or {}) do
-        if not seen[name] then
-            names[#names + 1], seen[name] = name, true
+    -- hints: by the quest's title, and by this objective's own text ("or false" keeps the list whole)
+    for _, key in ipairs({ self:Title(questID) or false, Quests.CoreText(objective.text) or false }) do
+        for _, name in ipairs(key and self:Hints(key) or {}) do
+            if not seen[name] then
+                names[#names + 1], seen[name] = name, true
+            end
         end
     end
     if #names == 0 then
@@ -337,13 +348,13 @@ function Quests:Names(questID, objectiveIndex, objective)
     return names
 end
 
-ns:RegisterCommand("hint", "'/akt hint add 99-Year-Old Port = Mad Magglish' names the mob of a quest whose tooltips never will; '/akt hint list'; '/akt hint remove <quest title>'", function(rest)
+ns:RegisterCommand("hint", "'/akt hint add 99-Year-Old Port = Mad Magglish' names the mob of a quest whose tooltips never will - by the quest's title or by the objective as the tracker shows it; '/akt hint list'; '/akt hint remove <title or objective>'", function(rest)
     local mode, args = string.match(rest or "", "^(%S*)%s*(.-)%s*$")
     mode = string.lower(mode or "")
     if mode == "add" then
         local title, mob = string.match(args, "^(.-)%s*=%s*(.-)$")
         if not (title and mob and title ~= "" and mob ~= "") then
-            ns:Print("usage: /akt hint add <quest title> = <mob name>")
+            ns:Print("usage: /akt hint add <quest title or objective> = <mob name>")
             return
         end
         Quests:Teach(title, mob)

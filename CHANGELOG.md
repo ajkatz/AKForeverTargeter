@@ -2,18 +2,29 @@
 
 ## 0.2.0
 
-- **In a dungeon or raid, the bosses and the rare spawns are rows** the moment you zone in: a built-in
-  list of the instances with their bosses in order and their known rares (`/akt dungeon list` prints it,
-  `/akt dungeon off` turns it off). Forever does not load the Adventure Guide, so the client has no list to
+- **In a dungeon or raid, the bosses and the rare spawns are rows** the moment you zone in, **on top of
+  the panel**: a built-in list of the instances with their bosses in order and their known rares
+  (`/akt dungeon list` prints it, `/akt dungeon off` turns it off). Inside, twenty rows fit instead of
+  twelve, the quest mobs come below the bosses, and a quest ready to turn in counts as elsewhere unless
+  the dungeon's own map carries it - its NPC is out in the world. Forever does not load the Adventure Guide, so the client has no list to
   ask; what your group meets corrects and extends it - a rare or a skull-level boss seen on your target,
   under the mouse or on a party member's target is remembered for that instance. A boss that dies is
   crossed off - a line through its name, dimmed, sorted last - so the panel doubles as "what is left";
   heard from the client's encounter events and from a dead boss on anybody's target. A `/reload` keeps
-  the marks, walking in afresh clears them. Bosses and rares are marked like quest mobs and join the any-target key after them.
+  the marks, walking in afresh clears them. Bosses and rares are marked like quest mobs and join the any-target key after them;
+  the markers go to the quest mobs first, and the dead give theirs back.
+- **The cave in front of an instance** has rare spawns of its own - Trigore the Lasher and Boahn before
+  the Wailing Caverns portal, Marisa du'Paige and the Brainwashed Noble in the mine before the Deadmines,
+  Digmaster Shovelphlange in the dig before Uldaman. Out in the world, where the subzone carries the
+  instance's name, they are rows after the quest rows.
+- The instance is recognised three ways (`IsInInstance`, the instance's own type, a dungeon's world map by
+  a listed name); `/akt dungeon list` says which one knew, or - out of any instance - what the client says
+  about where you are.
 - The end of a flight re-reads the map. In the air the zone events fire at the borders, but landing fires
   none, so the rows of the zone you took off from stayed until the next quest event.
 - **Quest hints** for the mobs no tooltip will ever name: Mad Magglish, stealthed in the Wailing Caverns
-  cave with the 99-Year-Old Port, is built in; `/akt hint add <quest title> = <mob>` teaches more.
+  cave with the 99-Year-Old Port (the quest is "Trouble at the Docks"), is built in;
+  `/akt hint add <quest title or objective> = <mob>` teaches more.
 
 ## 0.1.0 - first public release
 

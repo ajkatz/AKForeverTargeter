@@ -543,6 +543,8 @@ function Mock.install(options)
         cursor = { 800, 450 },
         playerMap = options.playerMap or 1411, -- Durotar, say
         homeMap = options.playerMap or 1411,   -- where a quest without a map of its own has its business
+        zone = "Durotar", subzone = "",        -- GetRealZoneText / GetSubZoneText
+        instanceQuiet = nil,                   -- "IsInInstance": that one says no inside; "both": GetInstanceInfo says the world too
     }
     local state = Mock.state
 
@@ -592,6 +594,7 @@ function Mock.install(options)
         [1411] = { mapID = 1411, name = "Durotar", mapType = 3, parentMapID = 12 },
         [1413] = { mapID = 1413, name = "Northern Barrens", mapType = 3, parentMapID = 12 },
         [12] = { mapID = 12, name = "Kalimdor", mapType = 2, parentMapID = 947 },
+        [279] = { mapID = 279, name = "Wailing Caverns", mapType = 4, parentMapID = 1413 }, -- a dungeon's map
     }
     global("C_Map", { GetMapInfo = function(uiMapID)
         if state.secretApis.mapInfo then
@@ -691,7 +694,7 @@ function Mock.install(options)
         if state.secretApis.IsInInstance then
             return Mock.SECRET, Mock.SECRET
         end
-        if state.instance then
+        if state.instance and not state.instanceQuiet then
             return true, state.instance.kind
         end
         return false, "none"
@@ -700,15 +703,34 @@ function Mock.install(options)
         if state.secretApis.GetInstanceInfo then
             return Mock.SECRET
         end
+        if state.instanceQuiet == "both" then
+            return "Eastern Kingdoms", "none", 0, "", 0, 0, false, 0, 0, 0
+        end
         local i = state.instance
         if not i then
             return "Durotar", "none", 0, "", 0, 0, false, 0, 0, 0
         end
         return i.name, i.kind, 1, "Normal", i.kind == "raid" and 40 or 5, 0, false, i.mapID, 5, 0
     end)
-    function Mock.enterInstance(mapID, name, kind) -- nil: back out into the world
+    -- uiMap: the world map the client shows inside (279 = Wailing Caverns); without one the player's map
+    -- stays what it was. Walking out puts the home map back.
+    function Mock.enterInstance(mapID, name, kind, uiMap) -- nil: back out into the world
         state.instance = mapID and { mapID = mapID, name = name, kind = kind or "party" } or nil
+        if uiMap then
+            state.playerMap = uiMap
+        elseif not mapID then
+            state.playerMap = state.homeMap
+        end
         Mock.fire("PLAYER_ENTERING_WORLD", false, false)
+    end
+    global("GetRealZoneText", function() return state.zone end)
+    global("GetZoneText", function() return state.zone end)
+    global("GetSubZoneText", function() return state.subzone end)
+    global("GetMinimapZoneText", function() return state.subzone ~= "" and state.subzone or state.zone end)
+    function Mock.setSubZone(name) -- you walked into another part of the zone
+        state.subzone = name or ""
+        Mock.fire("ZONE_CHANGED")
+        Mock.nextFrame()
     end
     unitApi("UnitName", function(unit) local u = unitOf(unit) return u and u.name or nil end)
     unitApi("UnitIsPlayer", function(unit) local u = unitOf(unit) return u and u.isPlayer or false end)
