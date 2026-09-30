@@ -27,6 +27,7 @@ local Panel = {}
 ns.Panel = Panel
 
 local WIDTH, ROW, ICON, PAD, TITLE_H = 220, 20, 16, 8, 22
+local EDIT_H = 26 -- the type-in box at the bottom
 
 -- Blizzard's own tooltip backdrop: the dark fill and thin border every utility panel in the game wears.
 local BACKDROP = {
@@ -46,8 +47,8 @@ local FLIGHT_TEXTURE = "Interface\\Minimap\\Tracking\\FlightMaster"
 local MACRO_LIMIT = 1000 -- a macrotext attribute takes 1023 characters
 local DEFAULT_POSITION = { point = "RIGHT", relativePoint = "RIGHT", x = -30, y = 0 }
 local DIM = 0.35
-local MARKED_KINDS = { mob = true, boss = true, rare = true } -- what gets a raid marker (a quest giver never)
-local MARK_FIRST = { "mob", "boss", "rare" } -- who picks a marker first, whatever the order of the rows
+local MARKED_KINDS = { custom = true, mob = true, boss = true, rare = true } -- what gets a raid marker (a quest giver never)
+local MARK_FIRST = { "custom", "mob", "boss", "rare" } -- who picks a marker first, whatever the order of the rows
 local ANY_BUTTON = "AKForeverTargeterAnyButton" -- the key binding clicks it: "CLICK AKForeverTargeterAnyButton:LeftButton"
 
 -- the Key Bindings screen reads this
@@ -56,7 +57,7 @@ _G["BINDING_NAME_CLICK " .. ANY_BUTTON .. ":LeftButton"] = "Target any of them (
 Panel.state = "not started"
 Panel.work = { events = 0, syncs = 0, syncMs = 0, slowestSyncMs = 0, placed = 0, waitedForCombatEnd = 0 }
 
-local panel, title, note, anyButton
+local panel, title, note, anyButton, typeIn
 local rows = {}        -- every row ever made (a pool: protected frames are never thrown away)
 local byKey = {}       -- "questID:objectiveIndex" / "questID:turnin" -> row in use
 local markerOf = {}    -- "questID:objectiveIndex" -> raid target index, kept while the objective is shown
@@ -151,7 +152,7 @@ function Panel.AnyMacroFor(list, markers)
         length = length + #line + 1
         return true
     end
-    for _, kind in ipairs({ "mob", "boss", "rare", "giver", "flightmaster" }) do
+    for _, kind in ipairs({ "custom", "mob", "boss", "rare", "giver", "flightmaster" }) do
         for _, want in ipairs(list) do
             if want.kind == kind and not want.done then -- (a dead boss is not worth a line)
                 for _, name in ipairs(want.names) do
@@ -256,6 +257,11 @@ local function wanted(record)
     end
     if inside and zoneOnly then
         Panel.zoneNote = "in " .. tostring(dungeon.name) .. ": the dungeon's own only (" .. tostring(whyHere) .. ")"
+    end
+    -- what you typed in: on top, never cut, wherever you are
+    for index, name in ipairs(Panel.Custom()) do
+        add({ key = "custom:" .. name, kind = "custom", questID = 0, order = -2000 + index, index = 0,
+            names = { name }, title = "Typed in", progress = "", picked = true })
     end
 
     local Quests = ns.Quests
@@ -452,6 +458,8 @@ local function showTooltip(row)
         tooltip:AddLine(row.done and "dungeon boss - dead" or "dungeon boss", 0.8, 0.8, 0.8)
     elseif row.kind == "rare" then
         tooltip:AddLine(row.done and "rare spawn - dead" or "rare spawn", 0.8, 0.8, 0.8)
+    elseif row.kind == "custom" then
+        tooltip:AddLine("typed in - right-click takes it off", 0.8, 0.8, 0.8)
     end
     if row.guessed then
         tooltip:AddLine("a guess from the quest's wording - his own tooltip will tell", 0.8, 0.8, 0.8)
@@ -469,6 +477,10 @@ end
 -- The right button is ours: hide the row, or (with Shift) lower / raise its priority.
 local function rightClick(row)
     if not row.key then
+        return
+    end
+    if row.kind == "custom" then
+        Panel:RemoveCustom(row.names and row.names[1])
         return
     end
     if type(IsShiftKeyDown) == "function" and IsShiftKeyDown() then
@@ -590,6 +602,45 @@ local function build()
         background:SetColorTexture(0.04, 0.04, 0.06, 0.8)
         Panel.look = "flat fill (no BackdropTemplate on this client)"
     end
+
+    -- The type-in box at the bottom: a name, Enter, and it has a row (Panel:AddCustom). Never focused on
+    -- its own - a click gives it the keyboard, Escape or Enter gives it back.
+    typeIn = CreateFrame("EditBox", "AKForeverTargeterTypeIn", panel, "InputBoxTemplate")
+    typeIn:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", PAD + 6, PAD - 2)
+    typeIn:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -PAD, PAD - 2)
+    typeIn:SetHeight(EDIT_H - 6)
+    if type(typeIn.SetAutoFocus) == "function" then
+        typeIn:SetAutoFocus(false)
+    end
+    if type(typeIn.SetMaxLetters) == "function" then
+        typeIn:SetMaxLetters(48)
+    end
+    local hint = typeIn:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    hint:SetPoint("LEFT", typeIn, "LEFT", 2, 0)
+    hint:SetText("type a name, Enter")
+    typeIn.hint = hint
+    local function showHint(self)
+        local empty = (self:GetText() or "") == ""
+        local focused = type(self.HasFocus) == "function" and self:HasFocus() or false
+        hint:SetShown(empty and not focused)
+    end
+    typeIn:SetScript("OnEnterPressed", function(self)
+        local name = self:GetText()
+        self:SetText("")
+        if type(self.ClearFocus) == "function" then
+            self:ClearFocus()
+        end
+        ns.SafeCall(Panel.AddCustom, Panel, name)
+    end)
+    typeIn:SetScript("OnEscapePressed", function(self)
+        if type(self.ClearFocus) == "function" then
+            self:ClearFocus()
+        end
+    end)
+    typeIn:SetScript("OnTextChanged", showHint)
+    typeIn:SetScript("OnEditFocusGained", showHint)
+    typeIn:SetScript("OnEditFocusLost", showHint)
+    Panel.typeIn = typeIn
 
     -- The counts, small and dim, right-aligned on the title line; the title fills what is left and
     -- truncates rather than leave the box (word wrap off: an ellipsis, never a second line).
@@ -822,12 +873,18 @@ local function fullSync()
         anyButton.names = names
     end
 
-    local height = TITLE_H + #list * ROW + PAD
+    -- the type-in box, when it is on, keeps the panel up with nothing to target: it is the way to type
+    local typing = ns:GetOption("typein") ~= false and ns:GetOption("tracker") ~= false
+    if typeIn and typeIn:IsShown() ~= typing then
+        typeIn:SetShown(typing)
+    end
+    local height = TITLE_H + #list * ROW + PAD + (typing and EDIT_H or 0)
     if panel:GetHeight() ~= height then
         panel:SetHeight(height)
     end
-    if panel:IsShown() ~= (#list > 0) then
-        panel:SetShown(#list > 0)
+    local show = #list > 0 or typing
+    if panel:IsShown() ~= show then
+        panel:SetShown(show)
     end
     Panel.state = (#list == 0 and "nothing to target" or string.format("%d target(s) of interest", #list))
         .. (cutCount > 0 and string.format(", %d more did not fit", cutCount) or "")
@@ -903,6 +960,60 @@ local function bookSync()
     end)
 end
 
+------------------------------------------------------------------------
+-- Typed in: cdb.custom = { "Bruuz", ... } - the names you typed into the box, in that order
+------------------------------------------------------------------------
+function Panel.Custom(create)
+    if not ns.cdb then
+        return {}
+    end
+    if create then
+        ns.cdb.custom = ns.cdb.custom or {}
+    end
+    return ns.cdb.custom or {}
+end
+
+local function tidyName(name)
+    name = type(name) == "string" and string.gsub(name, "^%s+", "") or ""
+    name = string.gsub(name, "%s+$", "")
+    return name
+end
+
+function Panel:AddCustom(name)
+    name = tidyName(name)
+    if name == "" or not ns.cdb then
+        return false
+    end
+    local list = Panel.Custom(true)
+    for _, known in ipairs(list) do
+        if string.lower(known) == string.lower(name) then
+            ns:Print("'" .. known .. "' is on the panel already.")
+            return false
+        end
+    end
+    list[#list + 1] = name
+    ns:Log("custom_added", name)
+    if InCombatLockdown() then
+        ns:Print("'" .. name .. "' noted - its row comes after the fight.")
+    end
+    Panel:Sync()
+    return true
+end
+
+function Panel:RemoveCustom(name)
+    name = string.lower(tidyName(name))
+    local list = Panel.Custom()
+    for index = #list, 1, -1 do
+        if string.lower(list[index]) == name then
+            ns:Log("custom_removed", list[index])
+            table.remove(list, index)
+            Panel:Sync()
+            return true
+        end
+    end
+    return false
+end
+
 function Panel:Describe()
     local list = {}
     for key, row in pairs(byKey) do
@@ -938,6 +1049,8 @@ function Panel:Describe()
         inUse = list,
         hidden = hiddenCount,
         elsewhere = elsewhereCount,
+        typed = Panel.Custom(),
+        typeIn = ns:GetOption("typein") ~= false,
         -- the last full pass, taken while the world was there: why each tracked quest has its rows or none
         cut = cutCount,
         cutRows = cutKeys,
@@ -1046,6 +1159,37 @@ ns:RegisterCommand("mark", "'/akt mark off': the rows only target; '/akt mark on
         ns:SetOption("mark", value == "on")
     end
     ns:Print("marking is " .. (ns:GetOption("mark") and "on" or "off") .. ".")
+end)
+
+ns:RegisterCommand("add", "'/akt add Bruuz': a row for that name, as the type-in box at the bottom of the panel does", function(rest)
+    if not Panel:AddCustom(rest) then
+        ns:Print("usage: /akt add <a mob's name>   (or type it into the box at the bottom of the panel)")
+    end
+end)
+
+ns:RegisterCommand("remove", "'/akt remove Bruuz': that typed-in row goes (a right-click on it does the same)", function(rest)
+    if not Panel:RemoveCustom(rest) then
+        ns:Print("usage: /akt remove <a name you typed in>; /akt typed lists them")
+    end
+end)
+
+ns:RegisterCommand("typed", "the names you typed in", function()
+    local list = Panel.Custom()
+    for index, name in ipairs(list) do
+        print("   " .. index .. ". " .. name)
+    end
+    ns:Print(#list .. " typed-in name(s).")
+end)
+
+ns:RegisterCommand("typein", "'/akt typein off': no type-in box at the bottom of the panel (and no panel with nothing to target); 'on' (default)", function(rest)
+    local word = string.lower(rest or "")
+    if word ~= "on" and word ~= "off" then
+        ns:Print("usage: /akt typein on | off   (now: " .. (ns:GetOption("typein") ~= false and "on" or "off") .. ")")
+        return
+    end
+    ns:SetOption("typein", word == "on")
+    Panel:Sync()
+    ns:Print("the type-in box is " .. word .. ".")
 end)
 
 ns:RegisterCommand("zone", "'/akt zone off' shows quests from every zone, '/akt zone on' only the ones whose business is here (default)", function(rest)

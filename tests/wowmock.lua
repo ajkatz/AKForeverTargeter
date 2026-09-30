@@ -158,7 +158,27 @@ end
 function methods.UnregisterEvent(self, event) self.__events[event] = nil end
 function methods.CreateTexture(self) return newWidget("Texture", nil, self) end
 function methods.CreateFontString(self) return newWidget("FontString", nil, self) end
-function methods.SetText(self, text) self.__text = text end
+function methods.SetText(self, text)
+    self.__text = text
+    if self.__scripts.OnTextChanged then
+        self.__scripts.OnTextChanged(self)
+    end
+end
+function methods.SetAutoFocus(self, auto) self.__autoFocus = auto end
+function methods.SetMaxLetters(self, count) self.__maxLetters = count end
+function methods.SetFocus(self)
+    self.__focused = true
+    if self.__scripts.OnEditFocusGained then
+        self.__scripts.OnEditFocusGained(self)
+    end
+end
+function methods.ClearFocus(self)
+    self.__focused = false
+    if self.__scripts.OnEditFocusLost then
+        self.__scripts.OnEditFocusLost(self)
+    end
+end
+function methods.HasFocus(self) return self.__focused == true end
 function methods.GetText(self) return self.__text end
 function methods.SetTexture(self, texture) self.__texture, self.__atlas = texture, nil end
 function methods.GetTexture(self) return self.__texture end
@@ -271,6 +291,16 @@ function Mock.click(button, mouseButton)
 end
 
 -- A right-click, with or without Shift held.
+-- click into an edit box, type, press Enter
+function Mock.enter(editBox, text)
+    editBox:SetFocus()
+    editBox:SetText(text)
+    local fn = editBox.__scripts.OnEnterPressed
+    if fn then
+        fn(editBox)
+    end
+end
+
 function Mock.rightClick(button, shift)
     Mock.state.modifiers.shift = shift and true or nil
     Mock.click(button, "RightButton")
@@ -616,7 +646,7 @@ function Mock.install(options)
     global("UIParent", uiParent)
     global("BackdropTemplateMixin", (not options.noBackdropTemplate) and {} or nil) -- the client offers the template, unless a scenario says not
     global("CreateFrame", function(kind, name, parent, template)
-        assert(kind == "Frame" or kind == "Button" or kind == "GameTooltip", "CreateFrame kind the mock does not know: " .. tostring(kind))
+        assert(kind == "Frame" or kind == "Button" or kind == "GameTooltip" or kind == "EditBox", "CreateFrame kind the mock does not know: " .. tostring(kind))
         local frame = newWidget(kind, name, parent, template)
         if name then
             global(name, frame)

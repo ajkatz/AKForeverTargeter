@@ -36,6 +36,9 @@
   gives distances, and somebody to turn in to gives way before a mob does. The note beside the title
   counts them (`+3 more`).
 - **The quest you picked in the tracker is here**, wherever the map puts it.
+- **A type-in box at the bottom of the panel**: a name, Enter, and it has a row - on top, marked,
+  never cut, wherever you are. Right-click the row to take it off; `/akt add`, `/akt remove`, `/akt typed`,
+  `/akt typein off`.
 - `/akt diag`: the report you asked for is kept (the one taken at logout, with the world already coming
   down, goes beside it), and it carries the panel's last pass quest by quest - here or not and why, what
   each objective names, which rows did not fit.

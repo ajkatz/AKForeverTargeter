@@ -45,6 +45,10 @@ smooth.*
   the distance to counts as near, somebody to turn in to as far, and what you lowered waits first. The rows
   that stay keep the tracker's order, and the note beside the title counts the rest (`+3 more`).
 - **The quest you picked in the tracker is here**, wherever the map puts it (`C_SuperTrack`).
+- **A type-in box at the bottom of the panel:** a name, Enter, and it has a row - on top, marked,
+  never cut, wherever you are (`/akt add <name>` does the same). Right-click the row to take it off
+  (`/akt remove <name>`, `/akt typed` lists them). The box keeps the panel up with nothing to target;
+  `/akt typein off` takes it away.
 - Tracked quests only: what is in your quest tracker is what gets rows. Drag the panel by its title.
 
 `/akt` lists the commands: `on`, `off`, `mark on|off`, `menu`, `zone on|off`, `flightmaster on|off` (a row for the

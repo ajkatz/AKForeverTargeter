@@ -172,7 +172,7 @@ scenario("a tracked kill quest: one row per objective in OUR panel - secure macr
     check(panel and panel:IsShown(), "the panel is there")
     local point, relativeTo, relativePoint, x, y = panel:GetPoint(1)
     equal(point, "RIGHT"); equal(relativeTo, UIParent); equal(relativePoint, "RIGHT"); equal(x, -30); equal(y, 0)
-    equal(panel:GetHeight(), 22 + 2 * 20 + 8, "the title line and two rows")
+    equal(panel:GetHeight(), 22 + 2 * 20 + 8 + 26, "the title line, two rows and the type-in box")
 
     local vermin, worker = rowFor(ns, KOBOLDS .. ":1"), rowFor(ns, KOBOLDS .. ":2")
     check(vermin and worker, "one row per objective that names a mob")
@@ -396,7 +396,8 @@ scenario("/akt off and on, /akt mark off, untracking a quest, turning one in", f
 
     state.watched = {}
     Mock.watchListChanged()
-    check(not AKForeverTargeterPanel:IsShown(), "nothing to target: no panel")
+    check(AKForeverTargeterPanel:IsShown(), "nothing to target: the panel stays up for the type-in box")
+    equal(AKForeverTargeterPanel:GetHeight(), 22 + 8 + 26, "title and box, nothing else")
     equal(ns.Panel.state, "nothing to target")
 
     slash("forget")
@@ -426,7 +427,7 @@ end)
 scenario("a client without the quest log API: quietly nothing", function()
     local ns = start({ noQuestLog = true })
     equal(ns.Panel.state, "nothing to target")
-    check(not AKForeverTargeterPanel:IsShown())
+    check(AKForeverTargeterPanel:IsShown(), "the panel is up for the type-in box: a name typed in needs no quest log")
     SlashCmdList.AKFOREVERTARGETER("diag")
 end)
 
@@ -1497,6 +1498,86 @@ scenario("more rows than fit: turn-ins give way first, the nearest quests stay w
     ns.Panel:SetDeprio("510:1", true)
     Mock.fire("QUEST_LOG_UPDATE"); Mock.nextFrame()
     equal(rowFor(ns, "510:1"), nil, "fifty yards away, but you said it matters less")
+end)
+
+scenario("a type-in box at the bottom of the panel: a name, Enter, and it has a row - on top, marked first, never cut, wherever you are; right-click takes it off", function()
+    local ns, state = start()
+    local box = AKForeverTargeterTypeIn
+    check(box and box:IsShown(), "the box is there")
+    check(box.hint:IsShown(), "and says what it is for")
+    local before = AKForeverTargeterPanel:GetHeight()
+    Mock.enter(box, "  Bruuz  ")
+    local row = rowFor(ns, "custom:Bruuz")
+    check(row, "a row"); equal(row.kind, "custom"); equal(row.slot, 1, "on top"); equal(row.names[1], "Bruuz", "tidied")
+    check(row.macro:find("/targetexact Bruuz", 1, true), "a secure /targetexact like any other row")
+    equal(row.marker, 6, "the next free marker: the ones the quest mobs hold stay where they are")
+    equal(box:GetText(), "", "the box is empty again"); equal(box:HasFocus(), false, "and the keyboard is yours")
+    equal(ns.cdb.custom[1], "Bruuz")
+    equal(AKForeverTargeterPanel:GetHeight(), before + 20, "one row taller")
+    Mock.enter(box, "bruuz")
+    check(printed("'Bruuz' is on the panel already")); equal(#ns.cdb.custom, 1)
+    Mock.enter(box, "   ")
+    equal(#ns.cdb.custom, 1, "nothing typed, nothing added")
+    check(frameFor("custom:Bruuz").typeIn == nil)
+
+    -- wherever you are, whatever the map says; the any key names it first
+    Mock.setPlayerMap(1413)
+    check(rowFor(ns, "custom:Bruuz"), "the map does not decide for a typed name")
+    check(ns.Panel:Describe().any.macro:find("^/cleartarget\n/targetexact %[noexists%] Bruuz\n"), ns.Panel:Describe().any.macro)
+    Mock.setPlayerMap(1411)
+
+    -- never cut: a full panel gives way elsewhere
+    for index = 1, 12 do
+        local id = 700 + index
+        state.quests[id] = { title = "Hunt " .. index, objectives = { { text = "Beast " .. index .. " slain: 0/5", type = "monster", fulfilled = 0, required = 5 } } }
+        state.watched[#state.watched + 1] = id
+    end
+    Mock.watchListChanged()
+    equal(rowCount(ns), 12); equal(rowFor(ns, "custom:Bruuz").slot, 1, "still on top")
+
+    -- right-click takes it off
+    Mock.rightClick(frameFor("custom:Bruuz"))
+    equal(rowFor(ns, "custom:Bruuz"), nil); equal(#ns.cdb.custom, 0)
+
+    -- the commands do the same
+    SlashCmdList.AKFOREVERTARGETER("add Mad Magglish")
+    check(rowFor(ns, "custom:Mad Magglish"))
+    SlashCmdList.AKFOREVERTARGETER("typed")
+    check(printed("1. Mad Magglish") and printed("1 typed-in name(s)"))
+    SlashCmdList.AKFOREVERTARGETER("remove mad magglish")
+    equal(rowFor(ns, "custom:Mad Magglish"), nil)
+    SlashCmdList.AKFOREVERTARGETER("remove nobody")
+    check(printed("usage: /akt remove"))
+    SlashCmdList.AKFOREVERTARGETER("add")
+    check(printed("usage: /akt add"))
+
+    -- in a fight the name is noted and the row comes after
+    Mock.setCombat(true)
+    Mock.enter(box, "Bruuz")
+    check(printed("'Bruuz' noted - its row comes after the fight"))
+    equal(rowFor(ns, "custom:Bruuz"), nil, "no protected frame in a fight")
+    Mock.setCombat(false)
+    check(rowFor(ns, "custom:Bruuz"), "and there it is")
+
+    -- the box can be turned off; the panel then hides with nothing to target
+    state.watched = {}
+    Mock.watchListChanged()
+    SlashCmdList.AKFOREVERTARGETER("remove Bruuz")
+    check(AKForeverTargeterPanel:IsShown(), "nothing to target, but the box is there")
+    SlashCmdList.AKFOREVERTARGETER("typein off")
+    equal(box:IsShown(), false); equal(AKForeverTargeterPanel:IsShown(), false, "nothing to target and no box: no panel")
+    SlashCmdList.AKFOREVERTARGETER("typein on")
+    check(box:IsShown() and AKForeverTargeterPanel:IsShown())
+    SlashCmdList.AKFOREVERTARGETER("off")
+    equal(AKForeverTargeterPanel:IsShown(), false, "/akt off takes the box along")
+    SlashCmdList.AKFOREVERTARGETER("on")
+
+    -- typed names come back next session
+    SlashCmdList.AKFOREVERTARGETER("add Bruuz")
+    local db = AKForeverTargeterDB
+    ns = start({ db = db })
+    check(rowFor(ns, "custom:Bruuz"), "remembered")
+    equal(ns.Panel:Describe().typed[1], "Bruuz")
 end)
 
 scenario("diagnostics and logout run; the report is SavedVariables-safe and holds no frame", function()
