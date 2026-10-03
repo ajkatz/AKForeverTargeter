@@ -1186,6 +1186,17 @@ scenario("a boss seen dead goes dim and sorts last; a rare met in an unlisted in
     check(rowFor(ns, "dg:Wailing Caverns:Lady Anacondra"), "known by its name")
 end)
 
+scenario("Forever's own dungeon: Excavation Site: Wetlands is known by its name whatever map id the client gives it", function()
+    local ns = start()
+    Mock.enterInstance(1234, "Excavation Site: Wetlands", "party") -- (an id this list does not know)
+    local first = rowFor(ns, "dg:1234:Saltspine")
+    check(first, "the first boss has a row"); equal(first.kind, "boss"); equal(first.slot, 1)
+    equal(rowFor(ns, "dg:1234:Shadetooth").slot, 2); equal(rowFor(ns, "dg:1234:Highland Horror").slot, 3); equal(rowFor(ns, "dg:1234:Relic Guardian").slot, 4)
+    equal(ns.Dungeons:Current().name, "Excavation Site: Wetlands"); equal(ns.Dungeons:Current().how, "IsInInstance")
+    check(first.macro:find("/targetexact Saltspine", 1, true), "an exact name, like every boss")
+    Mock.enterInstance(nil)
+end)
+
 scenario("quest hints: the 99-Year-Old Port names Mad Magglish though no tooltip ever will - by the quest's title or by the objective; a hint taught by command works the same", function()
     local PORT, BOTTLE = 959, 1699
     local ns, state = start({}, function(s)

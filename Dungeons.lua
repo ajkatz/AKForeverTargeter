@@ -105,6 +105,10 @@ local INSTANCES = {
     [533] = { name = "Naxxramas",
         bosses = { "Anub'Rekhan", "Grand Widow Faerlina", "Maexxna", "Noth the Plaguebringer", "Heigan the Unclean", "Loatheb", "Instructor Razuvious", "Gothik the Harvester",
             "Thane Korth'azz", "Lady Blaumeux", "Highlord Mograine", "Sir Zeliek", "Patchwerk", "Grobbulus", "Gluth", "Thaddius", "Sapphiron", "Kel'Thuzad" }, rares = {} },
+    -- FOREVER'S OWN. Keyed by name until its map id is known (`/akt dungeon list` inside prints it): the
+    -- name is the fallback whenever the id means nothing to this list.
+    ["Excavation Site: Wetlands"] = { name = "Excavation Site: Wetlands",
+        bosses = { "Saltspine", "Shadetooth", "Highland Horror", "Relic Guardian" }, rares = {} },
 }
 Dungeons.INSTANCES = INSTANCES
 

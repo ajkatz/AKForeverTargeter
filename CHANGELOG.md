@@ -7,6 +7,9 @@
   does not stand in the way of a living one further down the list - and a corpse is never left targeted
   in place of something alive. What no macro can do is pass over a corpse for a living mob of the *same*
   name: `/targetexact` takes the nearest one.
+- **Excavation Site: Wetlands**, Forever's own dungeon, is on the list: Saltspine, Shadetooth, Highland Horror,
+  Relic Guardian. (Its bosses are ordinary elites of ordinary level, so the panel could not learn them on
+  its own - learning only takes a rare or a skull-level boss.) Known by its name until its map id is seen.
 - **A typed name is a `/target`**: the beginning of a name will do. `Defias` in the type-in box finds the
   nearest Defias of any kind; a full name still finds exactly that mob. Everything the addon works out
   itself - a quest's mob, a boss, somebody to hand a quest in to - is still asked for by its exact name.
