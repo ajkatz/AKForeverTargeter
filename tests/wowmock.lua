@@ -5,8 +5,9 @@
 --    GetTitleForQuestID / GetQuestObjectives / ReadyForTurnIn / GetLogIndexForQuestID /
 --    UnitIsRelatedToActiveQuest, GetQuestLogCompletionText - and its events;
 --  * units and their tooltips (C_TooltipInfo.GetUnit), the mobs around the player, the target, raid markers -
---    and the four macro commands the rows use, as we UNDERSTAND them: /cleartarget, /targetexact,
---    /tm [exists,nodead] !N, /targetlasttarget [noexists]. Passing tests prove the logic, not the assumptions;
+--    and the macro commands the rows use, as we UNDERSTAND them: /cleartarget (also [dead]), /targetexact,
+--    /target (the beginning of a name), /tm [exists,nodead] !N, /targetlasttarget [noexists]. Passing tests
+--    prove the logic, not the assumptions;
 --  * taint: a field written onto one of Blizzard's frames, a script set or hooked on one - recorded, and
 --    the test runner fails the scenario;
 --  * combat: a protected frame of ours (a secure template) - and any frame of ours that has one as a child -
@@ -400,6 +401,16 @@ local function findMob(name)
     end
 end
 
+-- /target: the nearest whose name BEGINS with the text, whatever the case
+local function findMobByPrefix(text)
+    local wanted = string.lower(text)
+    for _, mob in ipairs(Mock.state.mobs) do
+        if string.lower(mob.name):sub(1, #wanted) == wanted then
+            return mob
+        end
+    end
+end
+
 function Mock.runMacro(text)
     assert(type(text) == "string" and #text <= 1023, "macrotext missing or too long")
     local state = Mock.state
@@ -423,8 +434,8 @@ function Mock.runMacro(text)
                 if state.target then
                     state.lastTarget, state.target = state.target, nil
                 end
-            elseif command == "/targetexact" then
-                local mob = findMob(argument)
+            elseif command == "/targetexact" or command == "/target" then
+                local mob = (command == "/target") and findMobByPrefix(argument) or findMob(argument)
                 if mob then
                     if state.target and state.target ~= mob then
                         state.lastTarget = state.target
@@ -560,7 +571,12 @@ function Mock.install(options)
     Mock.state = {
         inCombat = false,
         useKeyDown = options.useKeyDown ~= false,
-        playerName = "Purrdee",
+        playerName = options.playerName or "Purrdee",
+        surname = options.surname,                 -- a WoW: Forever surname: "Purrdee Bubson"
+        build70170 = options.build70170,           -- the surname in the realm slot, as the client does since Oct 1 2026
+        freshLogin = options.freshLogin,           -- no realm slot yet (older clients, on a fresh login)
+        coldLogin = options.coldLogin,             -- no name at all until PLAYER_LOGIN
+        normalizedRealm = options.normalizedRealm, -- false: no GetNormalizedRealmName(), only the spaced GetRealmName()
         watched = {},        -- quest ids in the tracker, in order
         quests = {},         -- [questID] = { title, objectives = { { text, type, finished, fulfilled, required } }, complete, completionText }
         units = {},          -- [unitToken] = { name, isPlayer, related, tooltip = { { type, leftText } } }
@@ -604,8 +620,34 @@ function Mock.install(options)
     global("date", function() return "2026-09-21 12:00:00" end)
     global("GetBuildInfo", function() return "1.60.1", "69913", "Sep 17 2026", 16001 end)
     global("InCombatLockdown", function() return state.inCombat end)
-    global("UnitFullName", function() return state.playerName, "TestRealm" end)
+    -- The player's name as the client gives it: state.surname adds a WoW: Forever surname; state.build70170
+    -- puts it in the realm slot, as the client does since Oct 1 2026 (UnitFullName("player") -> "Purrdee",
+    -- "Bubson"; before: "Purrdee Bubson", "TestRealm"); state.freshLogin: no realm slot yet; state.coldLogin:
+    -- no name at all until PLAYER_LOGIN (UnitName("player") says nothing then either: see unitOf).
+    global("UnitFullName", function()
+        if state.coldLogin then
+            return nil, nil
+        end
+        local name, slot = state.playerName, nil
+        if state.surname and state.build70170 then
+            slot = state.surname
+        else
+            if state.surname then
+                name = name .. " " .. state.surname
+            end
+            if not state.freshLogin then
+                slot = "TestRealm"
+            end
+        end
+        return name, slot
+    end)
     global("GetRealmName", function() return "Test Realm" end)
+    global("GetNormalizedRealmName", function()
+        if state.normalizedRealm == false then
+            return nil -- a client without it: the spaced GetRealmName(), squeezed, must do
+        end
+        return "TestRealm"
+    end)
     global("IsInGroup", function() return false end)
     global("GetBindingKey", function(command) return state.bindings[command] end)
     global("GetCursorPosition", function() return state.cursor[1], state.cursor[2] end)
@@ -709,7 +751,7 @@ function Mock.install(options)
     end
     local function unitOf(token)
         if token == "player" then
-            return { name = state.playerName, isPlayer = true }
+            return { name = not state.coldLogin and state.playerName or nil, isPlayer = true }
         elseif token == "target" then
             return state.target or state.units.target
         end
@@ -910,6 +952,7 @@ end
 
 function Mock.login()
     Mock.fire("ADDON_LOADED", ADDON)
+    Mock.state.coldLogin = false -- by PLAYER_LOGIN the client knows who you are
     Mock.fire("PLAYER_LOGIN")
 end
 

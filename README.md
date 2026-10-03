@@ -46,7 +46,9 @@ smooth.*
   that stay keep the tracker's order, and the note beside the title counts the rest (`+3 more`).
 - **The quest you picked in the tracker is here**, wherever the map puts it (`C_SuperTrack`).
 - **A type-in box at the bottom of the panel:** a name, Enter, and it has a row - on top, marked,
-  never cut, wherever you are (`/akt add <name>` does the same). Right-click the row to take it off
+  never cut, wherever you are (`/akt add <name>` does the same). A typed name is a `/target`, not a
+  `/targetexact`: the beginning of a name will do, so `Defias` finds the nearest Defias of any kind.
+  Right-click the row to take it off
   (`/akt remove <name>`, `/akt typed` lists them). The box keeps the panel up with nothing to target;
   `/akt typein off` takes it away.
 - Tracked quests only: what is in your quest tracker is what gets rows. Drag the panel by its title.
@@ -160,6 +162,10 @@ Run through these, then `/akt diag`, `/reload`, and the report is in
 
 ## Saved settings on the Forever beta
 
-The 1.60.1 beta client writes SavedVariables on logout but never reads them back; learned mobs, givers and
-the panel's place then last until you log out. `tools/Install-SavedStateBridge.ps1` is the workaround used
-during development.
+Learned mobs, givers and the dungeon lists are account-wide; the panel's place and the switches are saved
+per character, under the character's full name and realm, and come back on your next login. Client build
+1.60.1.70170 (Oct 1 2026) reads addon settings back again; it also moved a character's surname into the
+realm slot of `UnitName`, which split profiles for a day. Profiles saved under either spelling, and those
+of a cold login, are folded into one the first time each character logs in (`/akt diag` says what was
+adopted). The saved-settings bridge of the earlier beta builds (`tools/Install-SavedStateBridge.ps1`) is
+no longer needed: run it with `-Remove`.

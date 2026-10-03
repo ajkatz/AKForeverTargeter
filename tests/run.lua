@@ -181,7 +181,7 @@ scenario("a tracked kill quest: one row per objective in OUR panel - secure macr
     equal(vermin.text, "Kobold Vermin"); equal(vermin.progress, "3/10")
     equal(vermin.marker, 8, "the first gets the skull")
     equal(worker.marker, 7, "the second the cross")
-    equal(vermin.macro, "/cleartarget\n/targetexact Kobold Vermin\n/tm [exists,nodead] !8\n/targetlasttarget [noexists]")
+    equal(vermin.macro, "/cleartarget\n/targetexact Kobold Vermin\n/cleartarget [dead]\n/tm [exists,nodead] !8\n/targetlasttarget [noexists]")
 
     local frame = frameFor(KOBOLDS .. ":1")
     equal(frame:GetParent(), panel, "a child of OUR panel")
@@ -215,7 +215,8 @@ scenario("a click targets the mob and marks it; with no such mob around nothing 
     equal(vermin.marker, 8, "its marker untouched")
     equal(boar.marker, nil)
 
-    -- a corpse is targeted (the game does that) but not marked
+    -- a corpse is no find: the row lets go of it ("/cleartarget [dead]") and it is never marked. (With
+    -- nobody alive of that name, what was targeted last is taken back - in this mock that is the corpse.)
     local worker = { name = "Kobold Worker", dead = true }
     state.mobs[#state.mobs + 1] = worker
     Mock.click(frameFor(KOBOLDS .. ":2"))
@@ -269,8 +270,20 @@ scenario("a collect objective gets its row once a mob's tooltip has shown that o
     Mock.fire("UPDATE_MOUSEOVER_UNIT")
     dust = rowFor(ns, DUST .. ":1")
     equal(table.concat(dust.names, ","), "Kobold Miner,Kobold Tunneler", "every dropper is tried, in a stable order")
-    check(dust.macro:find("/targetexact Kobold Miner\n/targetexact Kobold Tunneler", 1, true))
+    check(dust.macro:find("/targetexact Kobold Miner\n/cleartarget [dead]\n/targetexact [noexists] Kobold Tunneler\n/cleartarget [dead]", 1, true), dust.macro)
     equal(dust.marker, 6, "and the marker stays the same")
+
+    -- the living come first: a dead Miner at your feet does not stand in the way of a living Tunneler
+    local deadMiner, tunneler = { name = "Kobold Miner", dead = true }, { name = "Kobold Tunneler" }
+    state.mobs = { deadMiner, tunneler }
+    Mock.click(frameFor(DUST .. ":1"))
+    equal(state.target, tunneler, "the living one"); equal(tunneler.marker, 6); equal(deadMiner.marker, nil)
+    -- and a living Miner is taken before a Tunneler is even asked for
+    local miner = { name = "Kobold Miner" }
+    state.mobs = { tunneler, miner }
+    Mock.click(frameFor(DUST .. ":1"))
+    equal(state.target, miner, "the first name that is alive")
+    state.target, state.mobs = nil, {}
 
     -- a kill objective's mob seen under another name (the quest text said "Kobold Vermin")
     state.units.target = { name = "Kobold Vermin", tooltip = {
@@ -374,7 +387,7 @@ scenario("/akt off and on, /akt mark off, untracking a quest, turning one in", f
     slash("mark off")
     local vermin = rowFor(ns, KOBOLDS .. ":1")
     equal(vermin.marker, nil)
-    equal(vermin.macro, "/cleartarget\n/targetexact Kobold Vermin\n/targetlasttarget [noexists]", "targets only")
+    equal(vermin.macro, "/cleartarget\n/targetexact Kobold Vermin\n/cleartarget [dead]\n/targetlasttarget [noexists]", "targets only")
     equal(frameFor(KOBOLDS .. ":1").icon.__texture, "Interface\\Minimap\\Tracking\\Target")
     slash("mark on")
     equal(rowFor(ns, KOBOLDS .. ":1").marker, 8)
@@ -700,9 +713,10 @@ scenario("one key for any of them: the first mob on the list that is around is t
     local any = AKForeverTargeterAnyButton
     check(any and any:IsVisible() and any:GetAlpha() == 0, "an invisible secure button the key clicks")
     equal(ns.Panel:Describe().any.boundTo, "T")
-    equal(any:GetAttribute("macrotext"), "/cleartarget\n/targetexact [noexists] Kobold Vermin\n/tm [exists,nodead] ~8\n"
-        .. "/targetexact [noexists] Kobold Worker\n/tm [exists,nodead] ~7\n/targetexact [noexists] Kobold Miner\n/tm [exists,nodead] ~6\n"
-        .. "/targetexact [noexists] Holt Thunderhorn\n/targetexact [noexists] Hunter Rise\n/targetexact [noexists] Thunder Bluff\n/targetlasttarget [noexists]")
+    equal(any:GetAttribute("macrotext"), "/cleartarget\n/targetexact [noexists] Kobold Vermin\n/cleartarget [dead]\n/tm [exists,nodead] ~8\n"
+        .. "/targetexact [noexists] Kobold Worker\n/cleartarget [dead]\n/tm [exists,nodead] ~7\n/targetexact [noexists] Kobold Miner\n/cleartarget [dead]\n/tm [exists,nodead] ~6\n"
+        .. "/targetexact [noexists] Holt Thunderhorn\n/targetexact [noexists] Hunter Rise\n/targetexact [noexists] Thunder Bluff\n/targetlasttarget [noexists]",
+        "a quest mob found dead is let go of; a quest giver is never dead")
 
     local boar, vermin, worker = { name = "Stonetusk Boar" }, { name = "Kobold Vermin" }, { name = "Kobold Worker" }
     local miner, holt = { name = "Kobold Miner" }, { name = "Holt Thunderhorn" }
@@ -727,6 +741,18 @@ scenario("one key for any of them: the first mob on the list that is around is t
     Mock.click(any)
     equal(state.target, holt, "the quest giver, when no mob is around")
     equal(holt.marker, nil, "and never marked")
+
+    -- the living come first: a dead Vermin at your feet does not keep the key from the living Worker
+    local deadVermin = { name = "Kobold Vermin", dead = true }
+    worker.marker = nil
+    state.target, state.mobs = boar, { boar, deadVermin, worker }
+    Mock.click(any)
+    equal(state.target, worker, "the corpse is let go of, the next name gets its turn")
+    equal(worker.marker, 7); equal(deadVermin.marker, nil, "no marker on a corpse")
+    -- and with nothing but corpses around, nothing is marked
+    state.target, state.mobs = boar, { boar, deadVermin }
+    Mock.click(any)
+    equal(deadVermin.marker, nil); equal(boar.marker, nil)
 
     vermin.marker = 1
     state.mobs = { vermin }
@@ -1509,7 +1535,7 @@ scenario("a type-in box at the bottom of the panel: a name, Enter, and it has a 
     Mock.enter(box, "  Bruuz  ")
     local row = rowFor(ns, "custom:Bruuz")
     check(row, "a row"); equal(row.kind, "custom"); equal(row.slot, 1, "on top"); equal(row.names[1], "Bruuz", "tidied")
-    check(row.macro:find("/targetexact Bruuz", 1, true), "a secure /targetexact like any other row")
+    check(row.macro:find("/target Bruuz\n", 1, true) and not row.macro:find("targetexact", 1, true), "a typed name is a /target: " .. row.macro)
     equal(row.marker, 6, "the next free marker: the ones the quest mobs hold stay where they are")
     equal(box:GetText(), "", "the box is empty again"); equal(box:HasFocus(), false, "and the keyboard is yours")
     equal(ns.cdb.custom[1], "Bruuz")
@@ -1523,8 +1549,25 @@ scenario("a type-in box at the bottom of the panel: a name, Enter, and it has a 
     -- wherever you are, whatever the map says; the any key names it first
     Mock.setPlayerMap(1413)
     check(rowFor(ns, "custom:Bruuz"), "the map does not decide for a typed name")
-    check(ns.Panel:Describe().any.macro:find("^/cleartarget\n/targetexact %[noexists%] Bruuz\n"), ns.Panel:Describe().any.macro)
+    check(ns.Panel:Describe().any.macro:find("^/cleartarget\n/target %[noexists%] Bruuz\n/cleartarget %[dead%]\n"), ns.Panel:Describe().any.macro)
     Mock.setPlayerMap(1411)
+
+    -- the beginning of a name will do: "defias" finds the nearest Defias of any kind, alive before dead
+    Mock.enter(box, "defias")
+    local loose = rowFor(ns, "custom:defias")
+    check(loose and loose.macro:find("/target defias\n", 1, true), "typed as it was typed")
+    local corpse, bandit, boar = { name = "Defias Pathstalker", dead = true }, { name = "Defias Bandit" }, { name = "Stonetusk Boar" }
+    state.target, state.mobs = boar, { boar, bandit }
+    Mock.click(frameFor("custom:defias"))
+    equal(state.target, bandit, "a name that begins with what you typed"); equal(bandit.marker, loose.marker)
+    state.target, state.mobs = boar, { boar, corpse }
+    Mock.click(frameFor("custom:defias"))
+    equal(corpse.marker, nil, "a corpse is no find, typed name or not")
+    -- a quest's own mob is still asked for by its exact name
+    check(rowFor(ns, KOBOLDS .. ":1").macro:find("/targetexact Kobold Vermin", 1, true))
+    SlashCmdList.AKFOREVERTARGETER("remove defias")
+    equal(rowFor(ns, "custom:defias"), nil)
+    state.target, state.mobs = nil, {}
 
     -- never cut: a full panel gives way elsewhere
     for index = 1, 12 do
@@ -1626,6 +1669,77 @@ scenario("the version: the packager's stamp, a working copy, a release tag", fun
     equal(start().version, "0.1.0-test", "the version the packager stamped into the TOC")
     equal(start({ version = "@project-version@" }).version, "dev", "a working copy: the TOC still holds the packager's token")
     equal(start({ version = "v0.1.0" }).version, "0.1.0", "a release tag: printed as v0.1.0, not vv0.1.0")
+end)
+
+-- The character's profile ------------------------------------------------------------------------------------
+-- Since client build 1.60.1.70170 (Oct 1 2026) the surname sits where the realm used to be: UnitFullName("player")
+-- answers "Purrdee", "Bubson" instead of "Purrdee Bubson", "ClassicBetaPvE". The profile key must not care.
+scenario("one profile per character: the full name and the realm, the same on the old client and on build 70170", function()
+    equal(start({ surname = "Bubson" }).characterKey, "Purrdee Bubson - TestRealm", "the old client: the name slot full, the realm slot the realm")
+    equal(start({ surname = "Bubson", freshLogin = true }).characterKey, "Purrdee Bubson - TestRealm", "a fresh login on the old client: no realm slot yet")
+    local ns = start({ surname = "Bubson", build70170 = true })
+    equal(ns.characterKey, "Purrdee Bubson - TestRealm", "build 70170: the surname in the realm slot")
+    equal(ns.cdb, AKForeverTargeterDB.chars["Purrdee Bubson - TestRealm"], "the profile sits in the account-wide table")
+    equal(start({ surname = "Bubson", build70170 = true, normalizedRealm = false }).characterKey, "Purrdee Bubson - TestRealm", "no GetNormalizedRealmName: GetRealmName() squeezed")
+    equal(start().characterKey, "Purrdee - TestRealm", "no surname: name and realm")
+end)
+
+scenario("a cold login: no name when the addon loads; the profile is bound at PLAYER_LOGIN, never saved as Unknown, and an early write lands in it", function()
+    local ns, state = Mock.install({ surname = "Bubson", build70170 = true, coldLogin = true })
+    Mock.fire("ADDON_LOADED", "AKForeverTargeter")
+    equal(ns.characterKey, nil, "nothing to bind to yet")
+    ns.cdb.early = { note = "written before the name was known" } -- what a module might do between the two events
+    state.coldLogin = false
+    Mock.fire("PLAYER_LOGIN")
+    equal(ns.characterKey, "Purrdee Bubson - TestRealm")
+    local profile = AKForeverTargeterDB.chars["Purrdee Bubson - TestRealm"]
+    equal(ns.cdb, profile, "bound to the saved table")
+    equal(profile.early.note, "written before the name was known", "the stand-in's writes are folded in")
+    local keys = {}
+    for key in pairs(AKForeverTargeterDB.chars) do
+        keys[#keys + 1] = key
+    end
+    equal(#keys, 1, "one profile and no 'Unknown - TestRealm': " .. table.concat(keys, ", "))
+end)
+
+scenario("profiles under older spellings are adopted once: this profile keeps its values, the others fill its gaps and go", function()
+    local db = { chars = {
+        ["Purrdee Bubson - TestRealm"] = { options = { fromOld = "old" }, place = { x = 1 } },
+        ["Purrdee - Bubson"] = { options = { fromOld = "new", fromNew = "new" }, place = { x = 2, y = 2 } },
+        ["Purrdee Bubson - Test Realm"] = { options = { fromOld = "spaced", fromNew = "spaced", fromSpaced = "spaced" }, place = { w = 4 } },
+        ["Unknown - TestRealm"] = { options = { fromOld = "cold", fromNew = "cold", fromCold = "cold" }, place = { y = 3, z = 3 }, extra = { deep = true } },
+    } }
+    local ns = start({ surname = "Bubson", build70170 = true, db = db })
+    equal(ns.characterKey, "Purrdee Bubson - TestRealm")
+    local cdb = ns.cdb
+    equal(cdb, db.chars["Purrdee Bubson - TestRealm"])
+    equal(cdb.options.fromOld, "old", "the long-standing profile wins")
+    equal(cdb.options.fromNew, "new", "the build-70170 profile fills gaps before the others")
+    equal(cdb.options.fromSpaced, "spaced"); equal(cdb.options.fromCold, "cold")
+    equal(cdb.place.x, 1); equal(cdb.place.y, 2); equal(cdb.place.w, 4); equal(cdb.place.z, 3, "filled down into nested tables")
+    equal(cdb.extra.deep, true)
+    equal(db.chars["Purrdee - Bubson"], nil, "the older spellings are gone")
+    equal(db.chars["Purrdee Bubson - Test Realm"], nil); equal(db.chars["Unknown - TestRealm"], nil)
+    local logged
+    for _, entry in ipairs(ns.sessionLog) do
+        if entry.k == "profile" then
+            logged = entry.d
+        end
+    end
+    check(logged and logged.key == "Purrdee Bubson - TestRealm", "the adoption is in the session log")
+    equal(logged.adopted[1], "Purrdee - Bubson"); equal(logged.adopted[2], "Purrdee Bubson - Test Realm"); equal(logged.adopted[3], "Unknown - TestRealm")
+
+    -- a character first seen on build 70170 keeps that profile, under the full key
+    local alt = start({ playerName = "Stabby", surname = "Bubson", build70170 = true,
+        db = { chars = { ["Stabby - Bubson"] = { options = { fromNew = "new" } } } } })
+    equal(alt.characterKey, "Stabby Bubson - TestRealm")
+    equal(alt.cdb.options.fromNew, "new"); equal(AKForeverTargeterDB.chars["Stabby - Bubson"], nil)
+
+    -- an alt logging in afterwards finds nothing to adopt and leaves the first character's profile alone
+    local other = start({ playerName = "Stabby", surname = "Bubson", build70170 = true, db = db })
+    equal(other.characterKey, "Stabby Bubson - TestRealm")
+    equal(next(other.cdb.options), nil, "an empty profile of its own")
+    equal(db.chars["Purrdee Bubson - TestRealm"].options.fromOld, "old")
 end)
 
 Mock.realPrint(string.format("\n%d passed, %d failed", passed, #failures))

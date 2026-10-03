@@ -119,16 +119,34 @@ end
 ------------------------------------------------------------------------
 -- The current target is put aside first and taken back when none of the names was found, so a click with
 -- nobody of that name around changes nothing - and the marker can only ever land on a mob we asked for.
-function Panel.MacroFor(names, marker)
+--
+-- THE LIVING COME FIRST (`living`, for everything that can be a corpse): a name whose nearest bearer is
+-- dead is no find - "/cleartarget [dead]" lets go of it and the next name gets its turn. What no macro
+-- can do is pass over a corpse for a living mob of the SAME name: /targetexact takes the nearest, and
+-- there is no asking for the second nearest.
+--
+-- A NAME YOU TYPED IN is a "/target", not a "/targetexact": the beginning of a name will do ("Kobold"
+-- finds the nearest kobold of any kind). Everything the addon worked out itself - a quest's mob, a
+-- boss, somebody to hand a quest in to - is asked for by its exact name.
+local LET_GO_OF_THE_DEAD = "/cleartarget [dead]"
+local TARGET_COMMAND = { custom = "/target" }
+
+function Panel.MacroFor(names, marker, kind)
+    local living = MARKED_KINDS[kind]
+    local command = TARGET_COMMAND[kind] or "/targetexact"
     local lines = { "/cleartarget" }
     local length = #lines[1]
-    for _, name in ipairs(names) do
-        local line = "/targetexact " .. name
-        if length + #line + 1 > MACRO_LIMIT - 60 then
+    for index, name in ipairs(names) do
+        local line = (living and index > 1) and (command .. " [noexists] " .. name) or (command .. " " .. name)
+        local cost = #line + 1 + (living and (#LET_GO_OF_THE_DEAD + 1) or 0)
+        if length + cost > MACRO_LIMIT - 60 then
             break
         end
         lines[#lines + 1] = line
-        length = length + #line + 1
+        if living then
+            lines[#lines + 1] = LET_GO_OF_THE_DEAD
+        end
+        length = length + cost
     end
     if marker then
         lines[#lines + 1] = "/tm [exists,nodead] !" .. marker -- "!": never toggles an already set marker off
@@ -141,6 +159,13 @@ end
 -- yet ("[noexists]"), and the mob found is marked with its own row's marker - unless it already carries
 -- one ("~"), so a later row's marker never lands on an earlier row's mob. The quest givers come last,
 -- with no marker line after them.
+--
+-- The living come first here too: a quest mob or a typed name found dead is let go of, so that a corpse
+-- at your feet does not stand in the way of the next name on the list. (Bosses and rares do without
+-- the extra line - there are twenty of them in a big dungeon and the macro has a limit; a dead one is
+-- crossed off the moment it is seen and has no line at all from then on.)
+local LIVING_FIRST = { custom = true, mob = true }
+
 function Panel.AnyMacroFor(list, markers)
     local lines = { "/cleartarget" }
     local length = #lines[1]
@@ -156,7 +181,9 @@ function Panel.AnyMacroFor(list, markers)
         for _, want in ipairs(list) do
             if want.kind == kind and not want.done then -- (a dead boss is not worth a line)
                 for _, name in ipairs(want.names) do
-                    add("/targetexact [noexists] " .. name)
+                    if add((TARGET_COMMAND[kind] or "/targetexact") .. " [noexists] " .. name) and LIVING_FIRST[kind] then
+                        add(LET_GO_OF_THE_DEAD)
+                    end
                 end
                 local marker = markers and markers[want.key]
                 if MARKED_KINDS[kind] and marker then
@@ -836,7 +863,7 @@ local function fullSync()
         end
         local marker = markerOf[want.key]
 
-        local macro = Panel.MacroFor(want.names, marker)
+        local macro = Panel.MacroFor(want.names, marker, want.kind)
         if row.macro ~= macro then
             row:SetAttribute("macrotext", macro)
             row.macro = macro
@@ -904,7 +931,7 @@ local function combatPass()
         local want = stillWanted[key]
         if want then
             dress(row, want)
-            row.stale = (Panel.MacroFor(want.names, row.marker) ~= row.macro) or nil
+            row.stale = (Panel.MacroFor(want.names, row.marker, want.kind) ~= row.macro) or nil
             row:SetAlpha(want.done and DIM or 1)
         else
             row.progress:SetText(Panel.IsHidden(key) and "hidden" or "done")
@@ -1161,7 +1188,7 @@ ns:RegisterCommand("mark", "'/akt mark off': the rows only target; '/akt mark on
     ns:Print("marking is " .. (ns:GetOption("mark") and "on" or "off") .. ".")
 end)
 
-ns:RegisterCommand("add", "'/akt add Bruuz': a row for that name, as the type-in box at the bottom of the panel does", function(rest)
+ns:RegisterCommand("add", "'/akt add Bruuz': a row for that name, as the type-in box at the bottom of the panel does - the beginning of a name will do ('/akt add Defias')", function(rest)
     if not Panel:AddCustom(rest) then
         ns:Print("usage: /akt add <a mob's name>   (or type it into the box at the bottom of the panel)")
     end
