@@ -1,5 +1,15 @@
 # AKForeverTargeter
 
+## 0.2.3
+
+- **Hall of Thanes** (levels 13-18, under Ironforge) and **City of Dalaran** (28-33, through the Underbelly)
+  are on the list: Faldrim Anvilmar, Magmatus, Plunder and Durgen Dirgehammer; Atrexis the Grave Knight,
+  Arcane Anomaly, Fel Ancient, Unstable Sentinel and Shade of the Archmage in the order they are met, then
+  the Mana Wraith, Mana Devourer, Mana Elemental and Arcanic Enigma, with Lyn the Ignored as the rare. Both
+  are known by name until their map ids are seen. The Deadmines was on the list all along. The Forever
+  dungeons that have not opened yet wait: their bosses are guesses so far, and a guessed row is worse than
+  none.
+
 ## 0.2.2
 
 - **Ruins of Lordaeron**, Forever's dungeon above the Undercity (levels 15-20), is on the list: The Baron,

@@ -113,6 +113,17 @@ local INSTANCES = {
     -- the bosses in the order they are met
     [2999] = { name = "Ruins of Lordaeron",
         bosses = { "The Baron", "Witherfang", "The Abandoned", "Bjork", "Rath'mael", "Viktor the Vile" }, rares = { "Lordaeron Captain" } },
+    -- Hall of Thanes (levels 13-18, under Ironforge, the way in from the High Seat): keyed by name until its
+    -- map id is seen - the Alliance side has not been walked by this addon yet
+    ["Hall of Thanes"] = { name = "Hall of Thanes",
+        bosses = { "Faldrim Anvilmar", "Magmatus", "Plunder", "Durgen Dirgehammer" }, rares = {} },
+    -- City of Dalaran (levels 28-33, through the Underbelly): the first five in the order they are met, the
+    -- other five in no known order yet; Lyn the Ignored is its rare
+    ["City of Dalaran"] = { name = "City of Dalaran",
+        bosses = { "Atrexis the Grave Knight", "Arcane Anomaly", "Fel Ancient", "Unstable Sentinel", "Shade of the Archmage",
+            "Mana Wraith", "Mana Devourer", "Mana Elemental", "Arcanic Enigma" }, rares = { "Lyn the Ignored" } },
+    -- (The Drowned City, Krol'dok Stronghold, Alcaz Prison, Blackmaw Hold and Shaper's Terrace wait until
+    -- they open: their bosses are guesses from game files so far, and a guessed row is worse than none.)
 }
 Dungeons.INSTANCES = INSTANCES
 
