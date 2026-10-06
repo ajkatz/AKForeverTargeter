@@ -1197,6 +1197,22 @@ scenario("Forever's own dungeon: Excavation Site: Wetlands is known by its name 
     Mock.enterInstance(nil)
 end)
 
+scenario("Forever's own dungeon: Ruins of Lordaeron, by its map id or by its name - six bosses in order and the Captain", function()
+    local ns = start()
+    Mock.enterInstance(2999, "Ruins of Lordaeron", "party")
+    local first = rowFor(ns, "dg:2999:The Baron")
+    check(first, "the first boss has a row"); equal(first.kind, "boss"); equal(first.slot, 1)
+    equal(rowFor(ns, "dg:2999:Witherfang").slot, 2); equal(rowFor(ns, "dg:2999:The Abandoned").slot, 3)
+    equal(rowFor(ns, "dg:2999:Bjork").slot, 4); equal(rowFor(ns, "dg:2999:Rath'mael").slot, 5); equal(rowFor(ns, "dg:2999:Viktor the Vile").slot, 6)
+    check(rowFor(ns, "dg:2999:Lordaeron Captain"), "the rare has a row too")
+    equal(ns.Dungeons:Current().name, "Ruins of Lordaeron"); equal(ns.Dungeons:Current().how, "IsInInstance")
+    Mock.enterInstance(nil)
+    -- another map id for the same name: the name is the fallback
+    Mock.enterInstance(4321, "Ruins of Lordaeron", "party")
+    check(rowFor(ns, "dg:4321:The Baron"), "known by its name whatever the id")
+    Mock.enterInstance(nil)
+end)
+
 scenario("quest hints: the 99-Year-Old Port names Mad Magglish though no tooltip ever will - by the quest's title or by the objective; a hint taught by command works the same", function()
     local PORT, BOTTLE = 959, 1699
     local ns, state = start({}, function(s)

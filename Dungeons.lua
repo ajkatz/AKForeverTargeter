@@ -109,6 +109,10 @@ local INSTANCES = {
     -- name is the fallback whenever the id means nothing to this list.
     ["Excavation Site: Wetlands"] = { name = "Excavation Site: Wetlands",
         bosses = { "Saltspine", "Shadetooth", "Highland Horror", "Relic Guardian" }, rares = {} },
+    -- Ruins of Lordaeron (levels 15-20, above the Undercity): map 2999 on this client (a report of 2026-10-06),
+    -- the bosses in the order they are met
+    [2999] = { name = "Ruins of Lordaeron",
+        bosses = { "The Baron", "Witherfang", "The Abandoned", "Bjork", "Rath'mael", "Viktor the Vile" }, rares = { "Lordaeron Captain" } },
 }
 Dungeons.INSTANCES = INSTANCES
 

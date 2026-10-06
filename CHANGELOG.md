@@ -1,5 +1,11 @@
 # AKForeverTargeter
 
+## 0.2.2
+
+- **Ruins of Lordaeron**, Forever's dungeon above the Undercity (levels 15-20), is on the list: The Baron,
+  Witherfang, The Abandoned, Bjork, Rath'mael and Viktor the Vile in the order they are met, and the
+  Lordaeron Captain, who is not there on every run. Inside, the panel showed nothing of it before.
+
 ## 0.2.1
 
 - **The living come first.** A name whose nearest bearer is a corpse no longer counts as found: a row and
