@@ -64,6 +64,10 @@ Event-driven, no timers. Settings and what was learned are saved per character.
 
 MIT licensed. Code, issues and the changelog: https://github.com/ajkatz/AKForeverTargeter
 
+### Community
+
+Questions, bug reports and ideas for the AKForever addons: join the Discord - https://discord.gg/cFvvvHVm4J
+
 ## Logo and screenshots
 
 Logo (400 x 400): `..\ForeverBranding\out\AKForeverTargeter\logo-400.png` (master: `logo-1024.png`).
