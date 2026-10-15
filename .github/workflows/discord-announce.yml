@@ -1,0 +1,23 @@
+# Copied from ajkatz/discord-hub templates/discord-announce.yml.
+# Secrets in this repo: DISCORD_WEBHOOK_URL (required),
+# ANTHROPIC_API_KEY (optional; without it the post is a plain commit list).
+name: Announce pushes to Discord
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: discord-announce-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  announce:
+    uses: ajkatz/discord-hub/.github/workflows/announce.yml@main
+    with:
+      project_name: "Forever Targeter"
+      project_description: "WoW: Forever - a Targets of interest panel beside the quest tracker: secure buttons that target and mark the mobs your quests want"
+    secrets: inherit
