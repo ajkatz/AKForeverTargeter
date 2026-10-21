@@ -10,7 +10,9 @@
 --
 -- DEAD. A listed mob seen dead - targeted, moused over, or on a group member's target, which is all the
 -- client lets an addon see - is marked killed for this visit: its row goes dim and sorts last, so the panel
--- doubles as "what is left". A /reload keeps the marks; walking in afresh clears them.
+-- doubles as "what is left". A /reload keeps the marks; walking in afresh clears them - but not the way back
+-- after a death: a release takes you out to the graveyard, and walking back into the instance you died in, within
+-- half an hour, is the same visit.
 --
 -- WHERE YOU ARE is asked three ways, because a beta client need not agree with itself: IsInInstance(), the
 -- instance's own type from GetInstanceInfo(), and the world map under your feet (a DUNGEON's map by a name
@@ -402,17 +404,46 @@ function Dungeons:EncounterEnded(encounterName, success)
 end
 
 -- Walking into an instance starts a visit: the kill marks of the last one are cleared. A /reload or a
--- fresh login inside keeps them.
+-- fresh login inside keeps them. So does COMING BACK AFTER A DEATH (the user, 2026-10-20: "targeter didn't
+-- realize we came back into the same instance after dying"): a release takes you out to the graveyard and the
+-- run back walks in again, which had wiped the marks of the very instance you died in. Leaving a dungeon or a
+-- raid dead or as a ghost is remembered (per character, over a /reload); walking back into that same instance
+-- within DEATH_RETURN seconds goes on with the visit. Entering any other instance first ends it. Walking out
+-- alive and back in is still a fresh visit: whether the leader reset the instance meanwhile is nothing the
+-- client tells an addon.
+local DEATH_RETURN = 30 * 60
+
+local function clock()
+    return type(time) == "function" and time() or GetTime()
+end
+
 local function enteredWorld(event, isInitialLogin, isReloadingUi)
     local facts = Dungeons:Where()
     local current = Dungeons:Current(facts)
     local key = current and current.key or nil
     local moved = key ~= Dungeons.visitKey
     if moved then
-        Dungeons.visitKey = key
+        local left, leftKind = Dungeons.visitKey, Dungeons.visitKind
+        if left and (leftKind == "party" or leftKind == "raid") and ns.cdb and readable(UnitIsDeadOrGhost, "player") == true then
+            ns.cdb.deathReturn = { key = left, at = clock() } -- out by a release: the way back is the same visit
+            ns:Log("dungeon_left_dead", { key = left })
+        end
+        Dungeons.visitKey, Dungeons.visitKind = key, current and current.kind or nil
         if key and not isInitialLogin and not isReloadingUi and ns.db then
-            store(key).killed = {}
-            ns:Log("dungeon_entered", { key = key, name = current.name, kind = current.kind, listed = current.data ~= nil, how = current.how })
+            local back = ns.cdb and ns.cdb.deathReturn
+            local returning = false
+            if current.kind == "party" or current.kind == "raid" then
+                returning = type(back) == "table" and back.key == key and type(back.at) == "number" and clock() - back.at <= DEATH_RETURN
+                if ns.cdb then
+                    ns.cdb.deathReturn = nil -- whichever instance this is, the question is settled
+                end
+            end
+            if returning then
+                ns:Log("dungeon_returned", { key = key, name = current.name, after = clock() - back.at })
+            else
+                store(key).killed = {}
+                ns:Log("dungeon_entered", { key = key, name = current.name, kind = current.kind, listed = current.data ~= nil, how = current.how })
+            end
         end
     end
     -- what the client said at the moment it mattered: the report's own look is taken at logout, with the

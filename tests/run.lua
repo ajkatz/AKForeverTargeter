@@ -1186,6 +1186,54 @@ scenario("a boss seen dead goes dim and sorts last; a rare met in an unlisted in
     check(rowFor(ns, "dg:Wailing Caverns:Lady Anacondra"), "known by its name")
 end)
 
+scenario("dying in a dungeon and coming back: a release takes you out to the graveyard, the run back walks in again - the same visit, its dead stay dead, over a /reload on the way too; walking out alive and back in is a fresh visit, and so is a return after half an hour or with another instance between", function()
+    local ns, state = start()
+    state.watched = {}
+    Mock.watchListChanged()
+    local function logged(kind)
+        local count = 0
+        for _, entry in ipairs(ns.sessionLog) do
+            if entry.k == kind then count = count + 1 end
+        end
+        return count
+    end
+    Mock.enterInstance(36, "The Deadmines", "party")
+    Mock.fire("ENCOUNTER_END", 1, "Rhahk'Zor", 1, 5, 1)
+    equal(rowFor(ns, "dg:36:Rhahk'Zor").done, true)
+    -- dead, released: out at the graveyard as a ghost; a /reload there; the cave in front; through the portal
+    state.playerDead = true
+    Mock.enterInstance(nil)
+    equal(ns.cdb.deathReturn.key, "36", "leaving dead is remembered"); equal(logged("dungeon_left_dead"), 1)
+    Mock.fire("PLAYER_ENTERING_WORLD", false, true)
+    Mock.setSubZone("The Deadmines")
+    Mock.enterInstance(36, "The Deadmines", "party")
+    state.playerDead = false -- resurrected at the entrance
+    equal(rowFor(ns, "dg:36:Rhahk'Zor").done, true, "the same visit: Rhahk'Zor stays dead")
+    equal(logged("dungeon_returned"), 1); equal(ns.cdb.deathReturn, nil, "settled")
+    Mock.setSubZone("")
+    -- walked out alive and back in: a fresh visit (a reset cannot be told apart)
+    Mock.enterInstance(nil)
+    Mock.enterInstance(36, "The Deadmines", "party")
+    equal(rowFor(ns, "dg:36:Rhahk'Zor").done, false, "walked out alive: a fresh visit")
+    -- dead and back after more than half an hour (the spirit healer, then a long way round): a fresh visit
+    Mock.fire("ENCOUNTER_END", 1, "Rhahk'Zor", 1, 5, 1)
+    state.playerDead = true
+    Mock.enterInstance(nil)
+    state.playerDead = false
+    Mock.now = Mock.now + 30 * 60 + 1
+    Mock.enterInstance(36, "The Deadmines", "party")
+    equal(rowFor(ns, "dg:36:Rhahk'Zor").done, false, "half an hour later: a fresh visit")
+    -- dead, then another instance first: a fresh visit when you come back
+    Mock.fire("ENCOUNTER_END", 1, "Rhahk'Zor", 1, 5, 1)
+    state.playerDead = true
+    Mock.enterInstance(nil)
+    state.playerDead = false
+    Mock.enterInstance(43, "Wailing Caverns", "party")
+    Mock.enterInstance(nil)
+    Mock.enterInstance(36, "The Deadmines", "party")
+    equal(rowFor(ns, "dg:36:Rhahk'Zor").done, false, "another instance between: a fresh visit")
+end)
+
 scenario("Forever's own dungeon: Excavation Site: Wetlands is known by its name whatever map id the client gives it", function()
     local ns = start()
     Mock.enterInstance(1234, "Excavation Site: Wetlands", "party") -- (an id this list does not know)

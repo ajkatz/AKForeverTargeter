@@ -1,5 +1,15 @@
 # AKForeverTargeter
 
+## 0.2.4
+
+- **Back from a death, the dead stay dead.** A release takes you out to the graveyard, and the run back
+  walked into the instance afresh - which cleared the kill marks of the very instance you had died in, so
+  every boss you had killed came back to life on the panel. Leaving a dungeon or raid dead or as a ghost is now
+  remembered for the character (a /reload on the way keeps it), and walking back into that same instance
+  within half an hour goes on with the visit. Entering another instance first, or coming back later, is a
+  fresh visit as before. Walking out alive and back in is a fresh visit too: whether the instance was reset
+  meanwhile is nothing the client tells an addon.
+
 ## 0.2.3
 
 - **Hall of Thanes** (levels 13-18, under Ironforge) and **City of Dalaran** (28-33, through the Underbelly)

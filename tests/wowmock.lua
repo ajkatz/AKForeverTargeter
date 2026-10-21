@@ -616,6 +616,7 @@ function Mock.install(options)
         return function(err) Mock.errors[#Mock.errors + 1] = tostring(err) end
     end)
     global("GetTime", function() return Mock.now end)
+    global("time", function() return 1760000000 + math.floor(Mock.now) end) -- seconds of the calendar: kept over a /reload
     global("debugprofilestop", function() return Mock.now * 1000 end)
     global("date", function() return "2026-09-21 12:00:00" end)
     global("GetBuildInfo", function() return "1.60.1", "69913", "Sep 17 2026", 16001 end)
@@ -751,7 +752,7 @@ function Mock.install(options)
     end
     local function unitOf(token)
         if token == "player" then
-            return { name = not state.coldLogin and state.playerName or nil, isPlayer = true }
+            return { name = not state.coldLogin and state.playerName or nil, isPlayer = true, dead = state.playerDead }
         elseif token == "target" then
             return state.target or state.units.target
         end
