@@ -560,6 +560,129 @@ scenario("a modifier can be asked for as well: held, it opens at the mouse and S
     holdMenu(false)
 end)
 
+scenario("one grid, three buttons: left = over the target's head, middle = Blizzard's placement circle for the ground marker of the same shape, right = clears both", function()
+    local ns, state = start({ bindingKey = "SHIFT-T" })
+    local menu = AKForeverTargeterMenu
+    equal(ns.MarkerMenu:Describe().cells, 9, "one grid")
+    -- Forever answered a "/wm 8" macro with "You can't do that right now" while the raid frame's own World
+    -- Markers menu worked: the middle button is Blizzard's worldmarker action, the raid frame's very call
+    equal(AKForeverTargeterMenuCell1:GetAttribute("type3"), "worldmarker", "middle = Blizzard's worldmarker action, not a /wm macro")
+    equal(AKForeverTargeterMenuCell1:GetAttribute("action3"), "set")
+    equal(AKForeverTargeterMenuCell5:GetAttribute("action3"), "clear", "the middle cell clears them all")
+    equal(AKForeverTargeterMenuCell5:GetAttribute("marker3"), nil)
+    equal(ns.MarkerMenu:Describe().groundMarkers, "unknown", "a client without IsRaidMarkerSystemEnabled")
+    local boar = { name = "Stonetusk Boar", marker = 8 }
+    state.mobs = { boar }
+    state.target = boar
+
+    -- each icon lands on the world marker of its own shape (1 square, 2 triangle, 3 diamond, 4 cross,
+    -- 5 star, 6 circle, 7 moon, 8 skull)
+    local expected = { [1] = 8, [2] = 4, [3] = 1, [4] = 7, [6] = 2, [7] = 3, [8] = 6, [9] = 5 }
+    for position, world in pairs(expected) do
+        AKForeverTargeter_ToggleMenu()
+        Mock.click(_G["AKForeverTargeterMenuCell" .. position], "MiddleButton")
+        equal(state.placingGround, world, "middle-click on cell " .. position)
+        check(not menu:IsShown(), "the menu gets out of the way of the placement circle")
+        Mock.placeGround()
+    end
+    for world = 1, 8 do
+        check(state.ground[world], "world marker " .. world .. " is down")
+    end
+    equal(boar.marker, 8, "a middle-click never touches the target's marker")
+
+    AKForeverTargeter_ToggleMenu()
+    Mock.click(AKForeverTargeterMenuCell1, "RightButton") -- the skull, right button
+    equal(boar.marker, nil, "a right-click takes the target's marker off")
+    equal(state.ground[8], nil, "and that cell's ground marker")
+    check(state.ground[4], "and no other ground marker")
+
+    AKForeverTargeter_ToggleMenu()
+    Mock.click(AKForeverTargeterMenuCell2) -- the cross, left button
+    equal(boar.marker, 7, "a left-click marks the target")
+    check(state.ground[4], "and leaves the ground alone")
+    equal(state.placingGround, nil, "with no circle")
+
+    AKForeverTargeter_ToggleMenu()
+    Mock.click(AKForeverTargeterMenuCell5, "MiddleButton") -- the middle cell, middle button
+    for world = 1, 8 do
+        equal(state.ground[world], nil, "the middle cell clears world marker " .. world)
+    end
+    equal(boar.marker, 7, "but not the target's")
+    AKForeverTargeter_ToggleMenu()
+    state.ground[3] = true
+    Mock.click(AKForeverTargeterMenuCell5, "RightButton")
+    equal(boar.marker, nil, "right on the middle cell: the target's marker")
+    equal(state.ground[3], nil, "and every ground marker")
+end)
+
+scenario("a row of four pings under the grid: at your target, or with none at the ground under the mouse; Blizzard's ping art; pings switched off in the options say so", function()
+    local ns, state = start({ bindingKey = "SHIFT-T" })
+    local menu = AKForeverTargeterMenu
+    equal(ns.MarkerMenu:Describe().pings, 4)
+    local words = { "attack", "warning", "onmyway", "assist" }
+    for index, word in ipairs(words) do
+        local button = _G["AKForeverTargeterMenuPing" .. index]
+        check(button and button.__protected, "ping " .. word .. " is a secure button")
+        equal(button.ping, word)
+    end
+    local cellBottom = select(5, AKForeverTargeterMenuCell7:GetPoint(1)) - 30
+    check(select(5, AKForeverTargeterMenuPing1:GetPoint(1)) < cellBottom, "the row sits under the grid")
+
+    local boar = { name = "Stonetusk Boar" }
+    state.mobs = { boar }
+    state.target = boar
+    AKForeverTargeter_ToggleMenu()
+    Mock.click(AKForeverTargeterMenuPing1)
+    equal(state.pings[1].word, "attack"); equal(state.pings[1].at, "Stonetusk Boar", "at the target")
+    check(not menu:IsShown(), "a ping closes the menu")
+    equal(boar.marker, nil, "and marks nothing")
+
+    state.target = nil
+    AKForeverTargeter_ToggleMenu()
+    Mock.click(AKForeverTargeterMenuPing3)
+    equal(state.pings[2].word, "onmyway"); equal(state.pings[2].at, "cursor", "no target: the ground under the mouse")
+
+    Mock.printed = {}
+    state.cvars.enablePings = false
+    AKForeverTargeter_ToggleMenu()
+    Mock.click(AKForeverTargeterMenuPing2)
+    check(table.concat(Mock.printed, "\n"):find("pings are switched off", 1, true), "switched off in the options: it says so")
+    equal(ns.MarkerMenu:Describe().pingsOff, true)
+end)
+
+scenario("a middle-click that cannot place a ground marker says why: switched off, no group, a raid without the rank - and nothing when nothing stands in the way", function()
+    local ns, state = start({ bindingKey = "SHIFT-T" })
+    local menu = AKForeverTargeterMenu
+    local function middle()
+        Mock.printed = {}
+        AKForeverTargeter_ToggleMenu()
+        Mock.click(AKForeverTargeterMenuCell1, "MiddleButton")
+        return table.concat(Mock.printed, "\n")
+    end
+    check(middle():find("need a group", 1, true), "solo: a group is needed")
+    equal(ns.MarkerMenu.work.groundClicks, 1, "the middle-click is counted")
+
+    _G.IsInGroup = function() return true end
+    equal(middle(), "", "in a party with nothing known against it: no word")
+    _G.IsInRaid = function() return true end
+    _G.UnitIsGroupLeader = function() return false end
+    _G.UnitIsGroupAssistant = function() return false end
+    check(middle():find("leader or an assistant", 1, true), "a raid without the rank")
+    _G.UnitIsGroupAssistant = function() return true end
+    equal(middle(), "", "an assistant may")
+    _G.IsRaidMarkerSystemEnabled = function() return false end
+    check(middle():find("switched off", 1, true), "a client without ground markers says so first")
+    equal(ns.MarkerMenu:Describe().groundMarkers, "off")
+
+    Mock.printed = {}
+    AKForeverTargeter_ToggleMenu()
+    Mock.click(AKForeverTargeterMenuCell1) -- left
+    equal(#Mock.printed, 0, "a left-click never talks about the ground")
+    check(not menu:IsShown())
+    -- (not mock globals: the next scenario's fresh client would keep them)
+    _G.IsInRaid, _G.UnitIsGroupLeader, _G.UnitIsGroupAssistant, _G.IsRaidMarkerSystemEnabled = nil, nil, nil, nil
+end)
+
 scenario("the marker menu in combat: Blizzard's state driver shows it while the keys are held, at its spot", function()
     local ns, state = start()
     wantModifier() -- in a fight a modifier is the ONLY way: a binding cannot show a protected frame then

@@ -14,8 +14,14 @@ smooth.*
   objective (`0/4 Flatland Prowler Claw`) the addon learns the mob the first time you mouse over or target
   one whose tooltip shows that objective. The quest giver is remembered as you accept the quest, and the
   names in a finished quest's "Return to ..." line are tried as well.
-- **A marker menu:** hold the modifier and a 3 x 3 grid appears at the mouse - the eight markers around a
-  clear button - for your current target. Left-click a cell to mark, right-click any cell to clear.
+- **A marker menu** (inspired by and designed after **DejaMark**): hold the modifier and a 3 x 3 grid
+  appears at the mouse - the eight markers around a clear button. **Left-click** a cell: that marker over
+  your target's head. **Middle-click**: the same marker on the ground - the placement circle comes up,
+  click the ground where it goes (you need a group, and leader or assist in a raid).
+  **Right-click**: clears your target's marker and that cell's ground marker. The middle cell clears the
+  target's marker (left), every ground marker (middle-click), or both (right-click). **Pings**: a row of
+  four under the grid - Attack, Warning, On my way, Assist - at your target, or with no target at the
+  ground under the mouse.
   **Out of combat the menu stays** until you pick a marker or click elsewhere, so a stray key-up cannot take
   it away (`/akt menu sticky off` if you prefer it to go with the keys). **In combat** Blizzard's state
   driver shows it while you hold the keys, at its spot (`/akt menu spot`).
@@ -160,6 +166,11 @@ Run through these, then `/akt diag`, `/reload`, and the report is in
 9. Walk out of a zone whose quest you are tracking: does its row go, and does the title say "1 quest
    elsewhere"? Walk back: does it return with its marker? (`diag.quests[].here` says what the client thinks.)
 
+10. In a group, middle-click a menu cell: does the placement circle come up with the right marker (the
+    skull cell = the white skull)? Does a right-click take that one off the ground and off the target, the
+    middle cell all of them? Solo, does anything happen? (`/akt menu` says whether the client runs ground
+    markers at all.)
+
 ## Saved settings on the Forever beta
 
 Learned mobs, givers and the dungeon lists are account-wide; the panel's place and the switches are saved
@@ -169,3 +180,8 @@ realm slot of `UnitName`, which split profiles for a day. Profiles saved under e
 of a cold login, are folded into one the first time each character logs in (`/akt diag` says what was
 adopted). The saved-settings bridge of the earlier beta builds (`tools/Install-SavedStateBridge.ps1`) is
 no longer needed: run it with `-Remove`.
+
+## Credits
+
+The marker menu - the grid at the mouse, and the idea behind it - is inspired by and designed after
+**DejaMark**. Thank you.

@@ -1,5 +1,19 @@
 # AKForeverTargeter
 
+## 0.3.0
+
+- **Ground markers in the marker menu.** The mouse button decides: left-click a cell puts that marker
+  over your target's head as before; **middle-click** puts it on the ground - Blizzard's placement circle
+  comes up, click where it goes; **right-click** clears both your target's marker and that cell's ground
+  marker. The middle cell clears every ground marker on a middle-click, and everything on a right-click.
+  Placing goes through Blizzard's own world-marker button action - the same call as the raid frame's
+  World Markers menu - so you need to be in a group (leader or assist in a raid). `/akt menu` says
+  whether the client runs ground markers at all, and a middle-click that cannot place one says why.
+- **Pings in the marker menu.** A row of four ping buttons under the grid - Attack, Warning, On my way,
+  Assist - with Blizzard's own ping icons. A ping goes to your target; with no target, to the ground
+  under the mouse. If pings are switched off in the game's options, the menu says so.
+- **Credit:** the marker menu is inspired by and designed after **DejaMark**.
+
 ## 0.2.4
 
 - **Back from a death, the dead stay dead.** A release takes you out to the graveyard, and the run back

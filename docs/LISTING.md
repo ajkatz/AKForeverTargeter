@@ -34,8 +34,10 @@ Blizzard's own secure code targets it - and, with marking on, puts that raid mar
 - **One key for any of them** (Key Bindings > AddOns > AKForeverTargeter): targets the first name on the panel that is
   around, in the panel's order, and marks it with its row's marker unless it already carries one. Quest givers come
   last and are never marked.
-- **A marker menu.** Hold the modifier and a 3 x 3 grid appears at the mouse - the eight markers around a clear button
-  - for your current target. Left-click a cell to mark, right-click any cell to clear. A lone Alt, Ctrl or Shift is
+- **A marker menu** (inspired by and designed after DejaMark). Hold the modifier and a 3 x 3 grid appears at the
+  mouse - the eight markers around a clear button. Left-click a cell: over your target's head. Middle-click: on the
+  ground (click where it goes; needs a group). Right-click: clears both. Underneath, four pings - Attack,
+  Warning, On my way, Assist - at your target, or the ground under the mouse. A lone Alt, Ctrl or Shift is
   everybody's combo key, so it can be a pair: `/akt menu mod alt-shift`. Out of combat the menu stays until you pick or
   click elsewhere; in combat Blizzard's state driver shows it while you hold the keys, at its own spot.
 - **Not now.** Right-click a row to hide it, Shift + right-click to put it last; the note beside the title counts what

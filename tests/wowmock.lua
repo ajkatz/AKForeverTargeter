@@ -275,20 +275,50 @@ function Mock.click(button, mouseButton)
         end
         if down == Mock.state.useKeyDown and not ranAction then
             ranAction = true
-            -- (SecureButton_GetModifiedAttribute: "type2" is the right button's, "type" everybody's; "" = ATTRIBUTE_NOOP)
-            local suffix = mouseButton == "RightButton" and "2" or "1"
+            -- (SecureButton_GetModifiedAttribute: "type2" is the right button's, "type3" the middle's, "type"
+            -- everybody's; "" = ATTRIBUTE_NOOP)
+            local suffix = ({ RightButton = "2", MiddleButton = "3" })[mouseButton] or "1"
             local kind = button.__attributes["type" .. suffix]
             if kind == nil then
                 kind = button.__attributes.type
             end
+            local function modified(name) -- SecureButton_GetModifiedAttribute, without modifier keys
+                local value = button.__attributes[name .. suffix]
+                if value == nil then
+                    value = button.__attributes[name]
+                end
+                return value
+            end
             if kind == "macro" then
-                Mock.runMacro(button.__attributes["macrotext" .. suffix] or button.__attributes.macrotext)
+                Mock.runMacro(modified("macrotext"))
+            elseif kind == "worldmarker" then
+                -- SecureTemplates.lua: "set" -> PlaceRaidMarker(marker or 1) (the placement circle), "clear" ->
+                -- ClearRaidMarker(marker) (nil: all), "toggle" (the default) -> one or the other
+                local marker, action = tonumber(modified("marker")), modified("action") or "toggle"
+                if action == "toggle" then
+                    action = Mock.state.ground[marker or 1] and "clear" or "set"
+                end
+                if action == "set" then
+                    Mock.state.placingGround = marker or 1
+                elseif marker then
+                    Mock.state.ground[marker] = nil
+                else
+                    Mock.state.ground = {}
+                end
             elseif kind ~= "" and kind ~= nil then
                 error("secure action the mock does not know: " .. tostring(kind))
             end
         end
         Mock.runScript(button, "PostClick", mouseButton, down)
     end
+end
+
+-- The player clicks the ground while a world marker's placement circle is up.
+function Mock.placeGround()
+    local index = Mock.state.placingGround
+    assert(index, "no placement circle is up")
+    Mock.state.ground[index] = true
+    Mock.state.placingGround = nil
 end
 
 -- A right-click, with or without Shift held.
@@ -417,6 +447,26 @@ function Mock.runMacro(text)
     for line in text:gmatch("[^\n]+") do
         local command, rest = line:match("^(/%a+)%s*(.*)$")
         assert(command, "not a macro line: " .. line)
+        if command == "/ping" then
+            -- "[@target,exists] attack; [@cursor] attack": the first clause whose conditions hold
+            for clause in rest:gmatch("[^;]+") do
+                local conditions, word = clause:match("^%s*%[(.-)%]%s*(%a+)%s*$")
+                assert(conditions, "bad /ping clause: " .. clause)
+                local unit, pass = nil, true
+                for condition in conditions:gmatch("[^,]+") do
+                    if condition:sub(1, 1) == "@" then unit = condition:sub(2)
+                    elseif condition == "exists" then pass = pass and unit == "target" and state.target ~= nil
+                    else error("/ping condition the mock does not know: " .. condition) end
+                end
+                assert(({ attack = 1, warning = 1, onmyway = 1, assist = 1 })[word], "not a ping type: " .. word)
+                if pass then
+                    state.pings[#state.pings + 1] = { word = word, at = unit == "target" and state.target.name or unit }
+                    break
+                end
+            end
+            command = nil
+        end
+        if command then
         local conditions, argument = rest:match("^%[(.-)%]%s*(.*)$")
         if not conditions then
             conditions, argument = "", rest
@@ -466,10 +516,20 @@ function Mock.runMacro(text)
                         state.target.marker = index
                     end
                 end
+            elseif command == "/wm" then
+                -- no unit given: PlaceRaidMarker brings up the placement circle; Mock.placeGround finishes it
+                local index = tonumber(argument)
+                assert(index and index >= 1 and index <= 8, "bad /wm argument: " .. argument)
+                state.placingGround = index
+            elseif command == "/cwm" then
+                local index = tonumber(argument)
+                assert(index and index >= 1 and index <= 8, "bad /cwm argument (the mock wants a number): " .. argument)
+                state.ground[index] = nil
             else
                 error("macro command the mock does not know: " .. command)
             end
         end
+        end -- (if command: /ping is handled above)
     end
 end
 
@@ -582,6 +642,10 @@ function Mock.install(options)
         units = {},          -- [unitToken] = { name, isPlayer, related, tooltip = { { type, leftText } } }
         mobs = {},           -- around the player: { name, dead, marker }
         target = nil, lastTarget = nil,
+        ground = {},         -- world markers down: [worldIndex] = true
+        placingGround = nil, -- a world marker's placement circle is up (its index)
+        pings = {},          -- pings sent: { word, at = a mob's name or "cursor" }
+        cvars = {},          -- GetCVarBool answers by name
         secretApis = {},
         mouseOver = nil,
         bindings = { AKFOREVERTARGETER_MENU = options.bindingKey, ["CLICK AKForeverTargeterAnyButton:LeftButton"] = options.anyKey },
@@ -650,6 +714,7 @@ function Mock.install(options)
         return "TestRealm"
     end)
     global("IsInGroup", function() return false end)
+    global("GetCVarBool", function(name) local v = state.cvars[name]; if v == nil then return nil end; return v end)
     global("GetBindingKey", function(command) return state.bindings[command] end)
     global("GetCursorPosition", function() return state.cursor[1], state.cursor[2] end)
     global("IsModifierKeyDown", function() return next(state.modifiers) ~= nil end)
@@ -660,7 +725,7 @@ function Mock.install(options)
         assert(delay == 0, "the addon runs nothing on a timer: only a next-frame check is allowed")
         Mock.timers[#Mock.timers + 1] = fn
     end })
-    global("C_Texture", { GetAtlasInfo = function(name) return name == "QuestTurnin" and { width = 16, height = 16 } or nil end })
+    global("C_Texture", { GetAtlasInfo = function(name) return (name == "QuestTurnin" or name:find("^Ping_Marker_Icon_")) and { width = 16, height = 16 } or nil end })
     -- a corner of the real map tree: Orgrimmar sits in Durotar, which sits on Kalimdor
     local MAPS = {
         [1454] = { mapID = 1454, name = "Orgrimmar", mapType = 3, parentMapID = 1411 },

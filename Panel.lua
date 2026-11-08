@@ -469,11 +469,16 @@ end
 ------------------------------------------------------------------------
 local tooltip
 
-local function showTooltip(row)
+-- Our own tooltip, shared with the marker menu: the game's shared one is never touched from here.
+function ns.Tooltip()
     if not tooltip then
-        -- our own tooltip: the game's shared one is never touched from here
         tooltip = CreateFrame("GameTooltip", "AKForeverTargeterTooltip", UIParent, "GameTooltipTemplate")
     end
+    return tooltip
+end
+
+local function showTooltip(row)
+    ns.Tooltip()
     tooltip:SetOwner(row, "ANCHOR_LEFT")
     tooltip:AddLine(row.questTitle or "", 1, 0.82, 0)
     tooltip:AddLine("Target: " .. table.concat(row.names or {}, ", "), 1, 1, 1)
@@ -692,9 +697,7 @@ local function build()
     end)
     panel:SetScript("OnEnter", function(self)
         ns.SafeCall(function()
-            if not tooltip then
-                tooltip = CreateFrame("GameTooltip", "AKForeverTargeterTooltip", UIParent, "GameTooltipTemplate")
-            end
+            ns.Tooltip()
             tooltip:SetOwner(self, "ANCHOR_LEFT")
             tooltip:AddLine("Targets of interest", 1, 0.82, 0)
             tooltip:AddLine("Drag to move.", 0.8, 0.8, 0.8)
