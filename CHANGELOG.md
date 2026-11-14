@@ -1,5 +1,12 @@
 # AKForeverTargeter
 
+## Unreleased
+
+- **The five new dungeons are on the list:** The Drowned City, Krol'dok Stronghold, Alcaz Prison (also
+  found by its old name, Alcaz Island Prison), Blackmaw Hold and Shaper's Terrace - their bosses and rares
+  as rows the moment you zone in. The names come from the guides written since launch; a name the game
+  spells differently gets no target - '/akt hint' puts it right, and say so.
+
 ## 0.3.0
 
 - **Ground markers in the marker menu.** The mouse button decides: left-click a cell puts that marker

@@ -124,8 +124,30 @@ local INSTANCES = {
     ["City of Dalaran"] = { name = "City of Dalaran",
         bosses = { "Atrexis the Grave Knight", "Arcane Anomaly", "Fel Ancient", "Unstable Sentinel", "Shade of the Archmage",
             "Mana Wraith", "Mana Devourer", "Mana Elemental", "Arcanic Enigma" }, rares = { "Lyn the Ignored" } },
-    -- (The Drowned City, Krol'dok Stronghold, Alcaz Prison, Blackmaw Hold and Shaper's Terrace wait until
-    -- they open: their bosses are guesses from game files so far, and a guessed row is worse than none.)
+    -- THE FIVE THAT OPENED AT LAUNCH (2026-11-04), keyed by name until their map ids are seen. The bosses
+    -- from the post-launch guides of 2026-11-13 (warcraft.wiki.gg, Warcraft Tavern, Conquest Capped, All
+    -- Things How), the spelling most of them agree on - unproven in the game: a row whose name is off by a
+    -- word targets nothing, and '/akt hint' or what your group meets puts it right.
+    -- The Drowned City (35-42, Stranglethorn Vale); Umbra, Gill and Braxton are rares that are not always there
+    ["The Drowned City"] = { name = "The Drowned City",
+        bosses = { "Zul'Alai", "Var'Taka", "Primeval Elemental", "Captain Dreadrise", "Deathless Marrow", "Min'loth the Serpent" },
+        rares = { "Umbra", "Gill", '"Pyromancer" Braxton' } }, -- Braxton by one guide only (Warcraft Tavern), quotes and all
+    -- Krol'dok Stronghold (40-45, Riverglades); one guide has "Handler Ashka" and "Overseer Mugg"
+    ["Krol'dok Stronghold"] = { name = "Krol'dok Stronghold",
+        bosses = { "Slavecrusher Grox", "Twilight Commander Zarmok", "War Handler Ashka", "Nar'gurk", "Bossman Toof", "Overlord Mugg" }, rares = {} },
+    -- Alcaz Prison (48-53, Dustwallow Marsh; announced as Alcaz Island Prison): the order is disputed, The
+    -- Questioner second by players' reports
+    ["Alcaz Prison"] = { name = "Alcaz Prison", aliases = { "Alcaz Island Prison" },
+        bosses = { "Overseer Wrex", "The Questioner", "Tidemistress Ca'zass", "Katerina the Cleaner", "Blazeroar" }, rares = {} },
+    -- Blackmaw Hold (55-60, Azshara)
+    ["Blackmaw Hold"] = { name = "Blackmaw Hold",
+        bosses = { "Withermaw", "Impaan the Imprisoner", "Elder Shaman Bloodmane", "Bonesnout the Unbroken", "Varrox Bleakhoof", "Blackmaw Behemoth", "Unbound Spirit" },
+        rares = { "Moontouched Wanderer" } },
+    -- Shaper's Terrace (58-60, Un'Goro Crater): one guide's list, in no known order (Cinder, Snowtalon and
+    -- Vitrix are named in the hotfixes of 2026-11-09); its "Ravasaur Hunters" is a pack, not a name
+    ["Shaper's Terrace"] = { name = "Shaper's Terrace",
+        bosses = { "Titanosaur", "Thunderhoof", "Venomridge", "Direhorn Matriarch", "Cinder", "King Op", "Snowtalon", "Bolt", "Vitrix", "Nanaya" },
+        rares = {} },
 }
 Dungeons.INSTANCES = INSTANCES
 
@@ -142,6 +164,9 @@ Dungeons.OUTSIDE = OUTSIDE
 local BY_NAME = {} -- the instance's name is the fallback key, should this client number its maps differently
 for _, data in pairs(INSTANCES) do
     BY_NAME[data.name] = data
+    for _, alias in ipairs(data.aliases or {}) do
+        BY_NAME[alias] = data -- a name it went by before launch, should the client still call it that
+    end
 end
 
 -- a client call that may not exist, may error, and may answer with a secret: all its results as a list, or
