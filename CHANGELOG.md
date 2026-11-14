@@ -1,6 +1,6 @@
 # AKForeverTargeter
 
-## Unreleased
+## 0.3.1
 
 - **The five new dungeons are on the list:** The Drowned City, Krol'dok Stronghold, Alcaz Prison (also
   found by its old name, Alcaz Island Prison), Blackmaw Hold and Shaper's Terrace - their bosses and rares
